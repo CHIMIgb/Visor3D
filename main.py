@@ -13,6 +13,7 @@ frame_lock = threading.Lock()
 current_frame = None
 running = True
 loaded_model = None
+is_loading_model = False
 
 # Conexiones de la mano para dibujar manualmente
 HAND_CONNECTIONS = [
@@ -82,6 +83,14 @@ def camera_thread_func():
             cv2.rectangle(image, (10, 10), (160, 40), (40, 40, 40), -1) # Fondo gris oscuro
             cv2.rectangle(image, (10, 10), (160, 40), (200, 200, 200), 1) # Borde sutil
             cv2.putText(image, "Abrir Modelo", (20, 30), cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 1)
+            
+            # Dibujar indicador de carga animado si aplica
+            if is_loading_model:
+                dots = int(time.time() * 3) % 4
+                loading_text = "Cargando" + "." * dots
+                cv2.rectangle(image, (10, 50), (160, 80), (30, 30, 30), -1)
+                cv2.rectangle(image, (10, 50), (160, 80), (0, 200, 255), 1)
+                cv2.putText(image, loading_text, (20, 70), cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 200, 255), 1)
 
             # Convertir a RGB y crear mp.Image
             rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -251,19 +260,24 @@ def draw_model(model_data):
     
     glDisable(GL_LIGHTING)
 
-def drop_callback(window, paths):
-    if not paths: return
-    path = paths[0]
-    
+def start_loading_model(path):
     def load_task():
-        global loaded_model
-        from model_loader import load_model
-        print("Cargando modelo en segundo plano, por favor espera...")
-        new_model = load_model(path)
-        if new_model:
-            loaded_model = new_model
+        global loaded_model, is_loading_model
+        is_loading_model = True
+        try:
+            from model_loader import load_model
+            print("Cargando modelo en segundo plano, por favor espera...")
+            new_model = load_model(path)
+            if new_model:
+                loaded_model = new_model
+        finally:
+            is_loading_model = False
             
     threading.Thread(target=load_task).start()
+
+def drop_callback(window, paths):
+    if not paths: return
+    start_loading_model(paths[0])
 
 def open_file_dialog():
     import tkinter as tk
@@ -279,15 +293,7 @@ def open_file_dialog():
     root.destroy()
     
     if path:
-        def load_task():
-            global loaded_model
-            from model_loader import load_model
-            print("Cargando modelo en segundo plano, por favor espera...")
-            new_model = load_model(path)
-            if new_model:
-                loaded_model = new_model
-                
-        threading.Thread(target=load_task).start()
+        start_loading_model(path)
 
 def key_callback(window, key, scancode, action, mods):
     if key == glfw.KEY_O and action == glfw.PRESS:
