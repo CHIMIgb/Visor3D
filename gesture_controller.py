@@ -21,10 +21,12 @@ last_gesture_time = 0
 SMOOTH_ALPHA = 0.3
 DEADZONE = 0.005
 
-smooth_fist_pos = None
 smooth_palm_pos = None
+smooth_palm_tilt = None
 smooth_pinch_dist = None
 smooth_two_fingers_pos = None
+
+last_palm_tilt = None
 
 def get_distance(p1, p2):
     return math.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2 + (p1[2]-p2[2])**2)
@@ -94,15 +96,12 @@ def apply_smoothing(current_val, prev_val, alpha=SMOOTH_ALPHA):
     if prev_val is None:
         return current_val
     if isinstance(current_val, tuple):
-        return (
-            prev_val[0] + alpha * (current_val[0] - prev_val[0]),
-            prev_val[1] + alpha * (current_val[1] - prev_val[1])
-        )
+        return tuple(prev_val[i] + alpha * (current_val[i] - prev_val[i]) for i in range(len(current_val)))
     return prev_val + alpha * (current_val - prev_val)
 
 def process_gestures(landmarks_list):
-    global last_pinch_dist, last_fist_pos, last_palm_pos, last_two_fingers_pos
-    global smooth_fist_pos, smooth_palm_pos, smooth_pinch_dist, smooth_two_fingers_pos
+    global last_pinch_dist, last_fist_pos, last_palm_pos, last_two_fingers_pos, last_palm_tilt
+    global smooth_fist_pos, smooth_palm_pos, smooth_pinch_dist, smooth_two_fingers_pos, smooth_palm_tilt
     global last_gesture_time
     
     detected = []
@@ -110,10 +109,12 @@ def process_gestures(landmarks_list):
     if not landmarks_list:
         smooth_fist_pos = None
         smooth_palm_pos = None
+        smooth_palm_tilt = None
         smooth_pinch_dist = None
         smooth_two_fingers_pos = None
         last_fist_pos = None
         last_palm_pos = None
+        last_palm_tilt = None
         last_two_fingers_pos = None
         last_pinch_dist = None
         config.detected_gestures = []
@@ -160,21 +161,48 @@ def process_gestures(landmarks_list):
         smooth_two_fingers_pos = None
         last_two_fingers_pos = None
         
-    # ✋ PANORÁMICA
+    # ✋ PALMA MÁGICA (Mover X/Y para Pan, Inclinar para Rotar)
     if gesture == GESTURE_OPEN_PALM:
+        # Calcular Inclinación en 3D (Z-depth)
+        yaw_raw = hand_lms[5][2] - hand_lms[17][2]
+        pitch_raw = hand_lms[9][2] - hand_lms[0][2]
+        roll_raw = math.atan2(hand_lms[9][1] - hand_lms[0][1], hand_lms[9][0] - hand_lms[0][0])
+        
+        tilt_raw = (yaw_raw, pitch_raw, roll_raw)
+        
         smooth_palm_pos = apply_smoothing((raw_center_x, raw_center_y), smooth_palm_pos)
-        if last_palm_pos is not None:
+        smooth_palm_tilt = apply_smoothing(tilt_raw, smooth_palm_tilt)
+        
+        if last_palm_pos is not None and last_palm_tilt is not None:
+            # 1. Panorámica (XY)
             dx = smooth_palm_pos[0] - last_palm_pos[0]
             dy = smooth_palm_pos[1] - last_palm_pos[1]
             if abs(dx) > DEADZONE or abs(dy) > DEADZONE:
-                config.camera_pan_x += dx * 5.0
-                config.camera_pan_y -= dy * 5.0
+                config.camera_pan_x += dx * 6.0
+                config.camera_pan_y -= dy * 6.0
                 last_palm_pos = smooth_palm_pos
+                
+            # 2. Rotación (Inclinación Z y Ángulo 2D)
+            dyaw = smooth_palm_tilt[0] - last_palm_tilt[0]
+            dpitch = smooth_palm_tilt[1] - last_palm_tilt[1]
+            droll = smooth_palm_tilt[2] - last_palm_tilt[2]
+            
+            if abs(dyaw) > 0.001 or abs(dpitch) > 0.001 or abs(droll) > 0.01:
+                config.camera_yaw -= dyaw * 4000.0  # Multiplicador Z
+                config.camera_pitch += dpitch * 4000.0 # Multiplicador Z
+                config.camera_roll += droll * 50.0  # Multiplicador Ángulo Radianes
+                
+                if config.camera_pitch > 89.0: config.camera_pitch = 89.0
+                if config.camera_pitch < -89.0: config.camera_pitch = -89.0
+                last_palm_tilt = smooth_palm_tilt
         else:
             last_palm_pos = smooth_palm_pos
+            last_palm_tilt = smooth_palm_tilt
     else:
         smooth_palm_pos = None
         last_palm_pos = None
+        smooth_palm_tilt = None
+        last_palm_tilt = None
         
     # 🤏 ZOOM
     if gesture == GESTURE_ZOOM_MODE:
