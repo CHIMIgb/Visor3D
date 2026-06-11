@@ -53,6 +53,11 @@ def camera_thread_func():
         running = False
         return
 
+    # Intentar forzar una resolución panorámica (16:9) para que coincida con pantallas modernas
+    # y así eliminar las franjas negras sin estirar la imagen.
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
     # Usar la nueva Tasks API de MediaPipe
     import mediapipe as mp
     from mediapipe.tasks import python
