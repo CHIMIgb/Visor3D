@@ -78,10 +78,10 @@ def camera_thread_func():
             # Invertir la imagen horizontalmente para un efecto espejo "selfie"
             image = cv2.flip(image, 1)
 
-            # Dibujar un botón virtual para cargar modelos
-            cv2.rectangle(image, (10, 10), (220, 60), (0, 120, 0), -1)
-            cv2.rectangle(image, (10, 10), (220, 60), (0, 255, 0), 2)
-            cv2.putText(image, "Abrir Modelo", (25, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+            # Dibujar un botón virtual para cargar modelos (más pequeño, estilo formal)
+            cv2.rectangle(image, (10, 10), (160, 40), (40, 40, 40), -1) # Fondo gris oscuro
+            cv2.rectangle(image, (10, 10), (160, 40), (200, 200, 200), 1) # Borde sutil
+            cv2.putText(image, "Abrir Modelo", (20, 30), cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 1)
 
             # Convertir a RGB y crear mp.Image
             rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -310,8 +310,8 @@ def mouse_button_callback(window, button, action, mods):
                     click_cam_x = (xpos / half_w) * cam_w
                     click_cam_y = (ypos / win_h) * cam_h
                     
-                    # Chequear si está dentro del área del botón (x: 10 a 220, y: 10 a 60)
-                    if 10 <= click_cam_x <= 220 and 10 <= click_cam_y <= 60:
+                    # Chequear si está dentro del área del botón (x: 10 a 160, y: 10 a 40)
+                    if 10 <= click_cam_x <= 160 and 10 <= click_cam_y <= 40:
                         threading.Thread(target=open_file_dialog).start()
 
 def main():
