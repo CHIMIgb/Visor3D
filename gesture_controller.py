@@ -16,6 +16,8 @@ last_fist_pos = None
 last_palm_pos = None
 last_two_fingers_pos = None
 last_gesture_time = 0
+was_thumbs_up = False
+was_ok = False
 
 # Filtro Exponencial y Zonas Muertas
 SMOOTH_ALPHA = 0.3
@@ -102,7 +104,7 @@ def apply_smoothing(current_val, prev_val, alpha=SMOOTH_ALPHA):
 def process_gestures(landmarks_list):
     global last_pinch_dist, last_fist_pos, last_palm_pos, last_two_fingers_pos, last_palm_tilt
     global smooth_fist_pos, smooth_palm_pos, smooth_pinch_dist, smooth_two_fingers_pos, smooth_palm_tilt
-    global last_gesture_time
+    global last_gesture_time, was_thumbs_up, was_ok
     
     detected = []
     
@@ -117,6 +119,8 @@ def process_gestures(landmarks_list):
         last_palm_tilt = None
         last_two_fingers_pos = None
         last_pinch_dist = None
+        was_thumbs_up = False
+        was_ok = False
         config.detected_gestures = []
         return
         
@@ -223,19 +227,23 @@ def process_gestures(landmarks_list):
         
     # 👍 PULGAR ARRIBA
     if gesture == GESTURE_THUMBS_UP:
-        if current_time - last_gesture_time > 1.0:
+        if not was_thumbs_up:
             config.current_render_mode_idx = (config.current_render_mode_idx + 1) % len(config.render_modes)
-            last_gesture_time = current_time
+            was_thumbs_up = True
+    else:
+        was_thumbs_up = False
             
     # 👌 OK
     if gesture == GESTURE_OK:
-        if current_time - last_gesture_time > 1.0:
+        if not was_ok:
             config.camera_pitch = 0.0
             config.camera_yaw = 0.0
             config.camera_roll = 0.0
             config.camera_pan_x = 0.0
             config.camera_pan_y = 0.0
             config.camera_distance = 3.0
-            last_gesture_time = current_time
+            was_ok = True
+    else:
+        was_ok = False
             
     config.detected_gestures = detected
