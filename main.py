@@ -12,6 +12,7 @@ import numpy as np
 frame_lock = threading.Lock()
 current_frame = None
 running = True
+loaded_model = None
 
 # Conexiones de la mano para dibujar manualmente
 HAND_CONNECTIONS = [
@@ -242,13 +243,41 @@ def draw_model(model_data):
     
     glDisable(GL_LIGHTING)
 
+def drop_callback(window, paths):
+    global loaded_model
+    from model_loader import load_model
+    if paths:
+        new_model = load_model(paths[0])
+        if new_model:
+            loaded_model = new_model
+
+def key_callback(window, key, scancode, action, mods):
+    global loaded_model
+    if key == glfw.KEY_O and action == glfw.PRESS:
+        import tkinter as tk
+        from tkinter import filedialog
+        from model_loader import load_model
+        
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True) # Asegurar que aparezca sobre la ventana GLFW
+        path = filedialog.askopenfilename(
+            title="Seleccionar Modelo 3D",
+            filetypes=[("Modelos 3D", "*.obj *.stl *.ply *.glb *.gltf"), ("Todos", "*.*")]
+        )
+        root.destroy()
+        
+        if path:
+            new_model = load_model(path)
+            if new_model:
+                loaded_model = new_model
+
 def main():
-    global running, current_frame
+    global running, current_frame, loaded_model
     
     from model_loader import load_model
     
     model_path = sys.argv[1] if len(sys.argv) > 1 else None
-    loaded_model = None
     if model_path:
         loaded_model = load_model(model_path)
     
@@ -271,6 +300,10 @@ def main():
         
     glfw.make_context_current(window)
     glfw.swap_interval(1) # Vsync
+    
+    # Registrar callbacks para interactividad básica (arrastrar y soltar, teclado)
+    glfw.set_drop_callback(window, drop_callback)
+    glfw.set_key_callback(window, key_callback)
     
     print("Esperando a la cámara...")
     time.sleep(1)
