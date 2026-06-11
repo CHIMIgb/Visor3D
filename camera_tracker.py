@@ -4,6 +4,7 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import config
+import gesture_controller
 
 def camera_thread_func():
     cap = cv2.VideoCapture(0)
@@ -46,8 +47,11 @@ def camera_thread_func():
                     config.current_landmarks_normalized = []
                     for hl in detection_result.hand_landmarks:
                         config.current_landmarks_normalized.append([(lm.x, lm.y, lm.z) for lm in hl])
+                    # Procesar gestos aquí mismo para mantenerlos sincronizados
+                    gesture_controller.process_gestures(config.current_landmarks_normalized)
                 else:
                     config.current_landmarks_normalized = None
+                    gesture_controller.process_gestures(None)
             
             time.sleep(0.01)
             

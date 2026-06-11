@@ -40,4 +40,9 @@ def get_ui_texture(is_loading):
         cv2.rectangle(img, (10, 50), (160, 80), (0, 200, 255, 255), 1)
         cv2.putText(img, loading_text, (20, 70), cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 200, 255, 255), 1)
         
+    # Mostrar gesto actual (Modo Debug Fase 4)
+    if config.detected_gestures:
+        gestures_str = ", ".join(config.detected_gestures)
+        cv2.putText(img, f"Gesto: {gestures_str}", (10, 90), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0, 255, 0, 255), 2)
+        
     return img

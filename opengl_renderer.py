@@ -104,7 +104,7 @@ def draw_grid():
 def apply_camera():
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
-    glTranslatef(0.0, 0.0, -config.camera_distance)
+    glTranslatef(config.camera_pan_x, config.camera_pan_y, -config.camera_distance)
     glRotatef(config.camera_pitch, 1, 0, 0)
     glRotatef(config.camera_yaw, 0, 1, 0)
 
