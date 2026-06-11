@@ -38,9 +38,10 @@ def get_finger_states(lms):
     wrist = lms[0]
     states = []
     
-    # Pulgar (tip=4, mcp=2)
-    # Comparamos la distancia a la muñeca desde la punta vs el nudillo
-    states.append(get_distance(wrist, lms[4]) > get_distance(wrist, lms[2]))
+    # Pulgar (tip=4, pinky_base=17, thumb_base=2)
+    # Comparamos la distancia de la punta del pulgar a la base del meñique. 
+    # Si es grande, está extendido (Thumbs up/Open palm). Si es corta, está plegado (Puño).
+    states.append(get_distance(lms[4], lms[17]) > get_distance(lms[2], lms[17]) * 1.1)
     
     # Indice (tip=8, pip=6)
     states.append(get_distance(wrist, lms[8]) > get_distance(wrist, lms[6]))
