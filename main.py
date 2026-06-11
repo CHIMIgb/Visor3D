@@ -81,24 +81,6 @@ def camera_thread_func():
             # Invertir la imagen horizontalmente para un efecto espejo "selfie"
             image = cv2.flip(image, 1)
 
-            # Dibujar un botón virtual para cargar modelos (más pequeño, estilo formal)
-            cv2.rectangle(image, (10, 10), (160, 40), (40, 40, 40), -1) # Fondo gris oscuro
-            cv2.rectangle(image, (10, 10), (160, 40), (200, 200, 200), 1) # Borde sutil
-            cv2.putText(image, "Abrir Modelo", (20, 30), cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 1)
-            
-            # Botón Cambiar Vista
-            cv2.rectangle(image, (170, 10), (320, 40), (40, 40, 40), -1)
-            cv2.rectangle(image, (170, 10), (320, 40), (200, 200, 200), 1)
-            cv2.putText(image, "Vista (V)", (180, 30), cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 1)
-            
-            # Dibujar indicador de carga animado si aplica
-            if is_loading_model:
-                dots = int(time.time() * 3) % 4
-                loading_text = "Cargando" + "." * dots
-                cv2.rectangle(image, (10, 50), (160, 80), (30, 30, 30), -1)
-                cv2.rectangle(image, (10, 50), (160, 80), (0, 200, 255), 1)
-                cv2.putText(image, loading_text, (20, 70), cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 200, 255), 1)
-
             # Convertir a RGB y crear mp.Image
             rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
@@ -136,9 +118,47 @@ def create_texture(image):
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
     
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image_data)
+    format_gl = GL_RGBA if channels == 4 else GL_RGB
+    glTexImage2D(GL_TEXTURE_2D, 0, format_gl, width, height, 0, format_gl, GL_UNSIGNED_BYTE, image_data)
     
     return texture_id
+
+def draw_ui_overlay(texture_id, win_w, win_h, img_w, img_h):
+    if texture_id is None: return
+    
+    glEnable(GL_TEXTURE_2D)
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    glBindTexture(GL_TEXTURE_2D, texture_id)
+    glDisable(GL_DEPTH_TEST)
+    glDisable(GL_LIGHTING)
+    
+    glMatrixMode(GL_PROJECTION)
+    glPushMatrix()
+    glLoadIdentity()
+    glOrtho(0, win_w, win_h, 0, -1, 1)
+    
+    glMatrixMode(GL_MODELVIEW)
+    glPushMatrix()
+    glLoadIdentity()
+    
+    glColor4f(1.0, 1.0, 1.0, 1.0)
+    
+    glBegin(GL_QUADS)
+    glTexCoord2f(0.0, 0.0); glVertex2f(0, 0)
+    glTexCoord2f(1.0, 0.0); glVertex2f(img_w, 0)
+    glTexCoord2f(1.0, 1.0); glVertex2f(img_w, img_h)
+    glTexCoord2f(0.0, 1.0); glVertex2f(0, img_h)
+    glEnd()
+    
+    glPopMatrix()
+    glMatrixMode(GL_PROJECTION)
+    glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
+    
+    glDisable(GL_BLEND)
+    glDisable(GL_TEXTURE_2D)
+    glEnable(GL_DEPTH_TEST)
 
 def draw_textured_quad(texture_id):
     if texture_id is None:
@@ -382,39 +402,18 @@ def mouse_button_callback(window, button, action, mods):
     global view_mode
     if button == glfw.MOUSE_BUTTON_LEFT and action == glfw.PRESS:
         xpos, ypos = glfw.get_cursor_pos(window)
-        win_w, win_h = glfw.get_window_size(window)
         
-        is_click_on_camera = False
-        click_cam_x, click_cam_y = 0, 0
-        
-        with frame_lock:
-            if current_frame is not None:
-                cam_h, cam_w = current_frame.shape[:2]
-                
-                if view_mode == 0:
-                    half_w = win_w // 2
-                    vx, vy, vw, vh = get_aspect_correct_viewport(0, 0, half_w, win_h, cam_w, cam_h)
-                    if vx <= xpos <= vx + vw and vy <= ypos <= vy + vh:
-                        is_click_on_camera = True
-                        click_cam_x = ((xpos - vx) / vw) * cam_w
-                        click_cam_y = ((ypos - vy) / vh) * cam_h
-                elif view_mode == 2:
-                    vx, vy, vw, vh = get_aspect_correct_viewport(0, 0, win_w, win_h, cam_w, cam_h)
-                    if vx <= xpos <= vx + vw and vy <= ypos <= vy + vh:
-                        is_click_on_camera = True
-                        click_cam_x = ((xpos - vx) / vw) * cam_w
-                        click_cam_y = ((ypos - vy) / vh) * cam_h
-                
-                if is_click_on_camera:
-                    if 10 <= click_cam_x <= 160 and 10 <= click_cam_y <= 40:
-                        threading.Thread(target=open_file_dialog).start()
-                    if 170 <= click_cam_x <= 320 and 10 <= click_cam_y <= 40:
-                        view_mode = (view_mode + 1) % 3
+        # El UI ahora está fijo en la esquina superior izquierda (coordenadas de ventana).
+        if 10 <= xpos <= 160 and 10 <= ypos <= 40:
+            threading.Thread(target=open_file_dialog).start()
+        elif 170 <= xpos <= 320 and 10 <= ypos <= 40:
+            view_mode = (view_mode + 1) % 3
 
 def main():
     global running, current_frame, loaded_model
     
     from model_loader import load_model
+    from ui_overlay import get_ui_texture
     
     model_path = sys.argv[1] if len(sys.argv) > 1 else None
     if model_path:
@@ -518,6 +517,16 @@ def main():
             aspect = fb_width / fb_height if fb_height > 0 else 1.0
             if loaded_model: draw_model(loaded_model, aspect)
             else: draw_cube(aspect)
+            
+        # ====== OVERLAY UI ======
+        ui_img = get_ui_texture(is_loading_model)
+        ui_tex = create_texture(ui_img)
+        if ui_tex:
+            ui_h, ui_w = ui_img.shape[:2]
+            glViewport(0, 0, fb_width, fb_height)
+            win_w, win_h = glfw.get_window_size(window)
+            draw_ui_overlay(ui_tex, win_w, win_h, ui_w, ui_h)
+            glDeleteTextures([ui_tex])
         
         glfw.swap_buffers(window)
         
