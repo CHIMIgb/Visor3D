@@ -8,7 +8,7 @@ from OpenGL.GLU import *
 import config
 from camera_tracker import camera_thread_func
 from opengl_renderer import *
-from input_handlers import drop_callback, key_callback, mouse_button_callback
+from input_handlers import drop_callback, key_callback, mouse_button_callback, cursor_position_callback, scroll_callback
 from ui_overlay import get_ui_texture
 
 def main():
@@ -43,6 +43,8 @@ def main():
     glfw.set_drop_callback(window, drop_callback)
     glfw.set_key_callback(window, key_callback)
     glfw.set_mouse_button_callback(window, mouse_button_callback)
+    glfw.set_cursor_pos_callback(window, cursor_position_callback)
+    glfw.set_scroll_callback(window, scroll_callback)
     
     print("Esperando a la cámara...")
     time.sleep(1)

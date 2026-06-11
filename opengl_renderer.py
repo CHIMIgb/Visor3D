@@ -2,8 +2,8 @@ import glfw
 from OpenGL.GL import *
 from OpenGL.GLU import *
 import numpy as np
+import config
 
-# Conexiones de la mano para dibujar el HUD
 HAND_CONNECTIONS = [
     (0, 1), (1, 2), (2, 3), (3, 4),
     (0, 5), (5, 6), (6, 7), (7, 8),
@@ -64,6 +64,7 @@ def draw_textured_quad(texture_id):
     glEnable(GL_TEXTURE_2D)
     glBindTexture(GL_TEXTURE_2D, texture_id)
     glDisable(GL_DEPTH_TEST)
+    glDisable(GL_LIGHTING)
     glMatrixMode(GL_PROJECTION)
     glPushMatrix()
     glLoadIdentity()
@@ -84,46 +85,121 @@ def draw_textured_quad(texture_id):
     glMatrixMode(GL_MODELVIEW)
     glDeleteTextures([texture_id])
     glDisable(GL_TEXTURE_2D)
+    glEnable(GL_DEPTH_TEST)
+
+def draw_grid():
+    if not config.show_grid: return
+    glDisable(GL_LIGHTING)
+    glColor3f(0.4, 0.4, 0.4)
+    glLineWidth(1.0)
+    glBegin(GL_LINES)
+    # Rejilla en el suelo (y = -1.0)
+    for i in range(-5, 6):
+        glVertex3f(i, -1.0, -5)
+        glVertex3f(i, -1.0, 5)
+        glVertex3f(-5, -1.0, i)
+        glVertex3f(5, -1.0, i)
+    glEnd()
+
+def apply_camera():
+    glMatrixMode(GL_MODELVIEW)
+    glLoadIdentity()
+    glTranslatef(0.0, 0.0, -config.camera_distance)
+    glRotatef(config.camera_pitch, 1, 0, 0)
+    glRotatef(config.camera_yaw, 0, 1, 0)
+
+def set_lighting():
+    glEnable(GL_LIGHTING)
+    glEnable(GL_LIGHT0)
+    
+    # Phong Lighting Components
+    glLightfv(GL_LIGHT0, GL_AMBIENT, [0.3, 0.3, 0.3, 1.0])
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, [0.8, 0.8, 0.8, 1.0])
+    glLightfv(GL_LIGHT0, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
+    # Luz direccional desde arriba y derecha
+    glLightfv(GL_LIGHT0, GL_POSITION, [1.0, 1.0, 1.0, 0.0])
+    
+    glEnable(GL_COLOR_MATERIAL)
+    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
+    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, [0.5, 0.5, 0.5, 1.0])
+    glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 64.0)
+    
+    # Asegurar que las normales sean unitarias tras escalar
+    glEnable(GL_NORMALIZE)
+
+def execute_render_mode(render_func):
+    mode = config.render_modes[config.current_render_mode_idx]
+    
+    if mode == "SOLID":
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        set_lighting()
+        render_func()
+        glDisable(GL_LIGHTING)
+        
+    elif mode == "WIREFRAME":
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+        glDisable(GL_LIGHTING)
+        glColor3f(0.0, 1.0, 0.0) # Verde
+        render_func()
+        
+    elif mode == "SOLID+WIRE":
+        # Draw solid
+        glEnable(GL_POLYGON_OFFSET_FILL)
+        glPolygonOffset(1.0, 1.0)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+        set_lighting()
+        render_func()
+        glDisable(GL_LIGHTING)
+        glDisable(GL_POLYGON_OFFSET_FILL)
+        
+        # Draw wireframe on top
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+        glColor3f(0.0, 0.0, 0.0) # Negro
+        render_func()
+        
+    elif mode == "POINTS":
+        glPolygonMode(GL_FRONT_AND_BACK, GL_POINT)
+        glPointSize(4.0)
+        glDisable(GL_LIGHTING)
+        glColor3f(1.0, 0.5, 0.0) # Naranja
+        render_func()
+        
+    # Reset
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+
+def render_cube_geometry():
+    vertices = ((1,-1,-1),(1,1,-1),(-1,1,-1),(-1,-1,-1),(1,-1,1),(1,1,1),(-1,-1,1),(-1,1,1))
+    edges = ((0,1),(1,2),(2,3),(3,0),(4,5),(5,7),(7,6),(6,4),(0,4),(1,5),(2,7),(3,6))
+    colors = ((0.8,0.2,0.2),(0.2,0.8,0.2),(0.2,0.2,0.8),(0.8,0.8,0.2),(0.8,0.2,0.8),(0.2,0.8,0.8),(0.9,0.9,0.9),(0.5,0.5,0.5))
+    surfaces = ((0,1,2,3),(3,2,7,6),(6,7,5,4),(4,5,1,0),(1,5,7,2),(4,0,3,6))
+    
+    # Calcular normales de las caras del cubo para la iluminación
+    glBegin(GL_QUADS)
+    for i, surface in enumerate(surfaces):
+        glColor3fv(colors[i])
+        # Normal rudimentaria para el cubo basado en sus vértices
+        v1 = np.array(vertices[surface[0]])
+        v2 = np.array(vertices[surface[1]])
+        v3 = np.array(vertices[surface[2]])
+        normal = np.cross(v2 - v1, v3 - v1)
+        norm = np.linalg.norm(normal)
+        if norm > 0: normal = normal / norm
+        glNormal3fv(normal)
+        
+        for vertex in surface: 
+            glVertex3fv(vertices[vertex])
+    glEnd()
 
 def draw_cube(aspect_ratio):
     glEnable(GL_DEPTH_TEST)
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
     gluPerspective(45, aspect_ratio, 0.1, 50.0)
-    glMatrixMode(GL_MODELVIEW)
-    glLoadIdentity()
-    glTranslatef(0.0, 0.0, -5.0)
-    glRotatef(glfw.get_time() * 50.0, 1, 1, 0)
-    vertices = ((1,-1,-1),(1,1,-1),(-1,1,-1),(-1,-1,-1),(1,-1,1),(1,1,1),(-1,-1,1),(-1,1,1))
-    edges = ((0,1),(1,2),(2,3),(3,0),(4,5),(5,7),(7,6),(6,4),(0,4),(1,5),(2,7),(3,6))
-    colors = ((0.8,0.2,0.2),(0.2,0.8,0.2),(0.2,0.2,0.8),(0.8,0.8,0.2),(0.8,0.2,0.8),(0.2,0.8,0.8),(0.9,0.9,0.9),(0.5,0.5,0.5))
-    surfaces = ((0,1,2,3),(3,2,7,6),(6,7,5,4),(4,5,1,0),(1,5,7,2),(4,0,3,6))
-    glBegin(GL_QUADS)
-    for i, surface in enumerate(surfaces):
-        glColor3fv(colors[i])
-        for vertex in surface: glVertex3fv(vertices[vertex])
-    glEnd()
-    glColor3f(1.0, 1.0, 1.0)
-    glBegin(GL_LINES)
-    for edge in edges:
-        for vertex in edge: glVertex3fv(vertices[vertex])
-    glEnd()
+    apply_camera()
+    draw_grid()
+    execute_render_mode(render_cube_geometry)
 
-def draw_model(model_data, aspect_ratio):
-    if not model_data: return
-    glEnable(GL_DEPTH_TEST)
-    glMatrixMode(GL_PROJECTION)
-    glLoadIdentity()
-    gluPerspective(45, aspect_ratio, 0.1, 50.0)
-    glMatrixMode(GL_MODELVIEW)
-    glLoadIdentity()
-    glTranslatef(0.0, 0.0, -3.0)
-    glRotatef(glfw.get_time() * 30.0, 0, 1, 0)
-    glEnable(GL_LIGHTING)
-    glEnable(GL_LIGHT0)
-    glEnable(GL_COLOR_MATERIAL)
-    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
-    glLightfv(GL_LIGHT0, GL_POSITION, [1.0, 1.0, 1.0, 0.0])
+def render_model_geometry(model_data):
     glColor3f(0.8, 0.8, 0.8)
     if not hasattr(model_data, 'display_list_id'):
         model_data.display_list_id = glGenLists(1)
@@ -139,7 +215,16 @@ def draw_model(model_data, aspect_ratio):
         glEnd()
         glEndList()
     glCallList(model_data.display_list_id)
-    glDisable(GL_LIGHTING)
+
+def draw_model(model_data, aspect_ratio):
+    if not model_data: return
+    glEnable(GL_DEPTH_TEST)
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    gluPerspective(45, aspect_ratio, 0.1, 50.0)
+    apply_camera()
+    draw_grid()
+    execute_render_mode(lambda: render_model_geometry(model_data))
 
 def draw_skeleton_opengl(landmarks_list):
     if not landmarks_list: return

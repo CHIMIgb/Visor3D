@@ -9,3 +9,18 @@ running = True
 loaded_model = None
 is_loading_model = False
 view_mode = 0  # 0: Dividida, 1: HUD 3D, 2: Realidad Aumentada
+
+# Fase 3: Renderizado Avanzado
+render_modes = ["SOLID", "WIREFRAME", "SOLID+WIRE", "POINTS"]
+current_render_mode_idx = 0
+show_grid = True
+
+# Fase 3: Cámara Orbital
+camera_distance = 3.0
+camera_yaw = 0.0
+camera_pitch = 0.0
+
+# Para control con ratón
+is_mouse_dragging = False
+last_mouse_x = 0
+last_mouse_y = 0
