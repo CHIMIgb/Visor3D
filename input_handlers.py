@@ -66,6 +66,9 @@ def mouse_button_callback(window, button, action, mods):
                 elif 490 <= xpos <= 640:
                     config.show_grid = not config.show_grid
                     return
+                elif 650 <= xpos <= 800:
+                    config.show_gestures_menu = not config.show_gestures_menu
+                    return
             
             # Si no hizo clic en la UI, iniciar rotación orbital
             config.is_mouse_dragging = True
