@@ -107,6 +107,7 @@ def apply_camera():
     glTranslatef(config.camera_pan_x, config.camera_pan_y, -config.camera_distance)
     glRotatef(config.camera_pitch, 1, 0, 0)
     glRotatef(config.camera_yaw, 0, 1, 0)
+    glRotatef(config.camera_roll, 0, 0, 1)
 
 def set_lighting():
     glEnable(GL_LIGHTING)
