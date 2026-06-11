@@ -227,40 +227,47 @@ def draw_model(model_data):
     
     glColor3f(0.8, 0.8, 0.8) # Color base
     
-    # Dibujar usando triángulos (Immediate mode para empezar, optimizable a VBO después)
-    glBegin(GL_TRIANGLES)
-    for face in model_data.faces:
-        for vertex_idx in face:
-            # Normales
-            if model_data.normals is not None and len(model_data.normals) > vertex_idx:
-                glNormal3fv(model_data.normals[vertex_idx])
-            # Colores de vértice
-            if model_data.colors is not None and len(model_data.colors) > vertex_idx:
-                glColor3fv(model_data.colors[vertex_idx])
-            # Vértice
-            glVertex3fv(model_data.vertices[vertex_idx])
-    glEnd()
+    # Dibujar usando Display Lists (caché en la tarjeta gráfica) para rendimiento ultra rápido
+    if not hasattr(model_data, 'display_list_id'):
+        model_data.display_list_id = glGenLists(1)
+        glNewList(model_data.display_list_id, GL_COMPILE)
+        glBegin(GL_TRIANGLES)
+        for face in model_data.faces:
+            for vertex_idx in face:
+                if model_data.normals is not None and len(model_data.normals) > vertex_idx:
+                    glNormal3fv(model_data.normals[vertex_idx])
+                if model_data.colors is not None and len(model_data.colors) > vertex_idx:
+                    glColor3fv(model_data.colors[vertex_idx])
+                glVertex3fv(model_data.vertices[vertex_idx])
+        glEnd()
+        glEndList()
+        
+    glCallList(model_data.display_list_id)
     
     glDisable(GL_LIGHTING)
 
 def drop_callback(window, paths):
-    global loaded_model
-    from model_loader import load_model
-    if paths:
-        new_model = load_model(paths[0])
+    if not paths: return
+    path = paths[0]
+    
+    def load_task():
+        global loaded_model
+        from model_loader import load_model
+        print("Cargando modelo en segundo plano, por favor espera...")
+        new_model = load_model(path)
         if new_model:
             loaded_model = new_model
+            
+    threading.Thread(target=load_task).start()
 
 def key_callback(window, key, scancode, action, mods):
-    global loaded_model
     if key == glfw.KEY_O and action == glfw.PRESS:
         import tkinter as tk
         from tkinter import filedialog
-        from model_loader import load_model
         
         root = tk.Tk()
         root.withdraw()
-        root.attributes('-topmost', True) # Asegurar que aparezca sobre la ventana GLFW
+        root.attributes('-topmost', True)
         path = filedialog.askopenfilename(
             title="Seleccionar Modelo 3D",
             filetypes=[("Modelos 3D", "*.obj *.stl *.ply *.glb *.gltf"), ("Todos", "*.*")]
@@ -268,9 +275,15 @@ def key_callback(window, key, scancode, action, mods):
         root.destroy()
         
         if path:
-            new_model = load_model(path)
-            if new_model:
-                loaded_model = new_model
+            def load_task():
+                global loaded_model
+                from model_loader import load_model
+                print("Cargando modelo en segundo plano, por favor espera...")
+                new_model = load_model(path)
+                if new_model:
+                    loaded_model = new_model
+                    
+            threading.Thread(target=load_task).start()
 
 def main():
     global running, current_frame, loaded_model
