@@ -77,6 +77,9 @@ def main():
             if texture_id:
                 draw_textured_quad(texture_id)
                 texture_id = None
+            
+            if lms_to_draw:
+                draw_skeleton_opengl(lms_to_draw)
                 
             glViewport(half_width, 0, half_width, fb_height)
             aspect = half_width / fb_height if fb_height > 0 else 1.0
@@ -105,6 +108,9 @@ def main():
             if texture_id:
                 draw_textured_quad(texture_id)
                 texture_id = None
+                
+            if lms_to_draw:
+                draw_skeleton_opengl(lms_to_draw)
                 
             glClear(GL_DEPTH_BUFFER_BIT)
             glViewport(0, 0, fb_width, fb_height)
