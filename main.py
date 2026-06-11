@@ -12,10 +12,32 @@ frame_lock = threading.Lock()
 current_frame = None
 running = True
 
-# Configuración de MediaPipe
-mp_hands = mp.solutions.hands
-mp_drawing = mp.solutions.drawing_utils
-mp_drawing_styles = mp.solutions.drawing_styles
+# Conexiones de la mano para dibujar manualmente
+HAND_CONNECTIONS = [
+    (0, 1), (1, 2), (2, 3), (3, 4),
+    (0, 5), (5, 6), (6, 7), (7, 8),
+    (5, 9), (9, 10), (10, 11), (11, 12),
+    (9, 13), (13, 14), (14, 15), (15, 16),
+    (13, 17), (0, 17), (17, 18), (18, 19), (19, 20)
+]
+
+def draw_landmarks_manual(image, detection_result):
+    if not detection_result or not detection_result.hand_landmarks:
+        return
+    h, w, _ = image.shape
+    for hand_landmarks in detection_result.hand_landmarks:
+        for connection in HAND_CONNECTIONS:
+            start_idx = connection[0]
+            end_idx = connection[1]
+            start_pt = hand_landmarks[start_idx]
+            end_pt = hand_landmarks[end_idx]
+            sx, sy = int(start_pt.x * w), int(start_pt.y * h)
+            ex, ey = int(end_pt.x * w), int(end_pt.y * h)
+            cv2.line(image, (sx, sy), (ex, ey), (0, 255, 0), 2)
+        
+        for lm in hand_landmarks:
+            cx, cy = int(lm.x * w), int(lm.y * h)
+            cv2.circle(image, (cx, cy), 4, (0, 0, 255), -1)
 
 def camera_thread_func():
     global current_frame, running
@@ -26,12 +48,24 @@ def camera_thread_func():
         running = False
         return
 
-    # Inicializar detección de manos
-    with mp_hands.Hands(
-        model_complexity=0,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5) as hands:
-        
+    # Usar la nueva Tasks API de MediaPipe
+    import mediapipe as mp
+    from mediapipe.tasks import python
+    from mediapipe.tasks.python import vision
+
+    # Configurar el detector usando el modelo descargado
+    base_options = python.BaseOptions(model_asset_path='hand_landmarker.task')
+    options = vision.HandLandmarkerOptions(base_options=base_options, num_hands=2)
+    
+    try:
+        detector = vision.HandLandmarker.create_from_options(options)
+    except Exception as e:
+        print(f"Error cargando el modelo de MediaPipe: {e}")
+        running = False
+        cap.release()
+        return
+
+    with detector:
         while running:
             success, image = cap.read()
             if not success:
@@ -39,27 +73,19 @@ def camera_thread_func():
                 time.sleep(0.1)
                 continue
 
-            # Convertir imagen para MediaPipe (de BGR a RGB)
-            image.flags.writeable = False
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            results = hands.process(image)
-
-            # Dibujar landmarks
-            image.flags.writeable = True
-            if results.multi_hand_landmarks:
-                for hand_landmarks in results.multi_hand_landmarks:
-                    mp_drawing.draw_landmarks(
-                        image,
-                        hand_landmarks,
-                        mp_hands.HAND_CONNECTIONS,
-                        mp_drawing_styles.get_default_hand_landmarks_style(),
-                        mp_drawing_styles.get_default_hand_connections_style())
-
-            # Actualizar frame de forma segura
-            with frame_lock:
-                current_frame = image.copy()
+            # Convertir a RGB y crear mp.Image
+            rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
             
-            # Pequeño sleep para evitar uso excesivo de CPU
+            # Detección
+            detection_result = detector.detect(mp_image)
+            
+            # Dibujar resultados
+            draw_landmarks_manual(rgb_image, detection_result)
+
+            with frame_lock:
+                current_frame = rgb_image.copy()
+            
             time.sleep(0.01)
             
     cap.release()
