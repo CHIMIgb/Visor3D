@@ -7,7 +7,7 @@ GESTURE_FIST = "FIST"
 GESTURE_OPEN_PALM = "OPEN_PALM"
 GESTURE_ZOOM_MODE = "ZOOM_MODE"
 GESTURE_THUMBS_UP = "THUMBS_UP"
-GESTURE_OK = "OK"
+GESTURE_TWO_HANDS = "TWO_HANDS"
 GESTURE_TWO_FINGERS = "TWO_FINGERS"
 
 # Estado interno
@@ -68,25 +68,22 @@ def classify_hand(lms):
     # Comprobar si índice y pulgar se tocan (Pinza)
     pinch_dist = get_distance(lms[4], lms[8])
     is_pinching = pinch_dist < 0.05
-    
-    # 👌 OK Gesture
-    if is_pinching and middle and ring and pinky:
-        return GESTURE_OK
         
     # 🤏 ZOOM MODE (Pulgar e Índice extendidos, sin tocarse)
     if thumb and index and not is_pinching and not middle and not ring and not pinky:
         return GESTURE_ZOOM_MODE
         
-    # ✊ FIST y 👍 THUMBS_UP
-    if not index and not middle and not ring and not pinky:
-        if not thumb:
-            return GESTURE_FIST
-        else:
-            return GESTURE_THUMBS_UP
+    # ✊ FIST
+    if not index and not middle and not ring and not pinky and not thumb:
+        return GESTURE_FIST
             
-    # ✌️ TWO_FINGERS
+    # ✌️ DOS DEDOS (V)
     if not thumb and index and middle and not ring and not pinky:
         return GESTURE_TWO_FINGERS
+        
+    # 👍 THUMBS_UP
+    if thumb and not index and not middle and not ring and not pinky:
+        return GESTURE_THUMBS_UP
         
     # ✋ OPEN_PALM (Exigimos al menos los 4 dedos principales extendidos)
     if index and middle and ring and pinky:
@@ -125,10 +122,22 @@ def process_gestures(landmarks_list):
         return
         
     hand_lms = landmarks_list[0]
-    gesture = classify_hand(hand_lms)
-    detected.append(gesture)
     
-    raw_center_x = hand_lms[9][0]
+    # ✋✋ DOS MANOS ARRIBA (RESET)
+    if len(landmarks_list) >= 2:
+        hand1 = classify_hand(landmarks_list[0])
+        hand2 = classify_hand(landmarks_list[1])
+        if hand1 == GESTURE_OPEN_PALM and hand2 == GESTURE_OPEN_PALM:
+            gesture = GESTURE_TWO_HANDS
+            detected.append(GESTURE_TWO_HANDS)
+        else:
+            gesture = hand1
+            detected.append(gesture)
+    else:
+        gesture = classify_hand(hand_lms)
+        detected.append(gesture)
+        
+    raw_center_x = hand_lms[0][0]
     raw_center_y = hand_lms[9][1]
     
     current_time = time.time()
@@ -233,8 +242,8 @@ def process_gestures(landmarks_list):
     else:
         was_thumbs_up = False
             
-    # 👌 OK
-    if gesture == GESTURE_OK:
+    # ✋✋ RESET (DOS MANOS ARRIBA)
+    if gesture == GESTURE_TWO_HANDS:
         if not was_ok:
             config.camera_pitch = 0.0
             config.camera_yaw = 0.0
