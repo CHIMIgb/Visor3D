@@ -301,9 +301,12 @@ def main():
     cam_thread = threading.Thread(target=camera_thread_func)
     cam_thread.start()
     
-    # Ventana ancha para split screen
-    window_width, window_height = 1280, 480
-    window = glfw.create_window(window_width, window_height, "Visor 3D por Gestos - Fase 1", None, None)
+    # Configurar para que inicie maximizada y adaptada a la pantalla
+    glfw.window_hint(glfw.MAXIMIZED, glfw.TRUE)
+    monitor = glfw.get_primary_monitor()
+    video_mode = glfw.get_video_mode(monitor)
+    
+    window = glfw.create_window(video_mode.size.width, video_mode.size.height, "Visor 3D por Gestos", None, None)
     
     if not window:
         glfw.terminate()
