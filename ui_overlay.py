@@ -8,7 +8,7 @@ def get_ui_texture(is_loading):
     Genera una imagen RGBA transparente con los botones dibujados.
     Ahora incluye los botones para los modos de la Fase 3.
     """
-    img = np.zeros((100, 660, 4), dtype=np.uint8)
+    img = np.zeros((200, 700, 4), dtype=np.uint8)
     
     # Botón Abrir Modelo (x=10 a 160)
     cv2.rectangle(img, (10, 10), (160, 40), (40, 40, 40, 200), -1)
@@ -44,5 +44,14 @@ def get_ui_texture(is_loading):
     if config.detected_gestures:
         gestures_str = ", ".join(config.detected_gestures)
         cv2.putText(img, f"Gesto: {gestures_str}", (10, 90), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0, 255, 0, 255), 2)
+        
+    # Leyenda de Gestos
+    start_y = 70
+    cv2.putText(img, "Gestos Disponibles:", (490, start_y), cv2.FONT_HERSHEY_COMPLEX, 0.4, (255, 255, 255, 255), 1)
+    cv2.putText(img, "- Palma: Mover/Rotar", (490, start_y + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
+    cv2.putText(img, "- Pulgar+Indice: Zoom", (490, start_y + 40), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
+    cv2.putText(img, "- Pulgar Arriba: Modo", (490, start_y + 60), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
+    cv2.putText(img, "- 2 Dedos (V): Rotar Z", (490, start_y + 80), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
+    cv2.putText(img, "- Signo OK: Reset", (490, start_y + 100), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
         
     return img
