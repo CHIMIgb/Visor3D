@@ -78,6 +78,11 @@ def camera_thread_func():
             # Invertir la imagen horizontalmente para un efecto espejo "selfie"
             image = cv2.flip(image, 1)
 
+            # Dibujar un botón virtual para cargar modelos
+            cv2.rectangle(image, (10, 10), (220, 60), (0, 120, 0), -1)
+            cv2.rectangle(image, (10, 10), (220, 60), (0, 255, 0), 2)
+            cv2.putText(image, "Abrir Modelo", (25, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+
             # Convertir a RGB y crear mp.Image
             rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
@@ -260,30 +265,54 @@ def drop_callback(window, paths):
             
     threading.Thread(target=load_task).start()
 
+def open_file_dialog():
+    import tkinter as tk
+    from tkinter import filedialog
+    
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes('-topmost', True)
+    path = filedialog.askopenfilename(
+        title="Seleccionar Modelo 3D",
+        filetypes=[("Modelos 3D", "*.obj *.stl *.ply *.glb *.gltf"), ("Todos", "*.*")]
+    )
+    root.destroy()
+    
+    if path:
+        def load_task():
+            global loaded_model
+            from model_loader import load_model
+            print("Cargando modelo en segundo plano, por favor espera...")
+            new_model = load_model(path)
+            if new_model:
+                loaded_model = new_model
+                
+        threading.Thread(target=load_task).start()
+
 def key_callback(window, key, scancode, action, mods):
     if key == glfw.KEY_O and action == glfw.PRESS:
-        import tkinter as tk
-        from tkinter import filedialog
+        # Llamar al hilo o función que abre el archivo
+        threading.Thread(target=open_file_dialog).start()
+
+def mouse_button_callback(window, button, action, mods):
+    if button == glfw.MOUSE_BUTTON_LEFT and action == glfw.PRESS:
+        xpos, ypos = glfw.get_cursor_pos(window)
+        win_w, win_h = glfw.get_window_size(window)
+        half_w = win_w / 2.0
         
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        path = filedialog.askopenfilename(
-            title="Seleccionar Modelo 3D",
-            filetypes=[("Modelos 3D", "*.obj *.stl *.ply *.glb *.gltf"), ("Todos", "*.*")]
-        )
-        root.destroy()
-        
-        if path:
-            def load_task():
-                global loaded_model
-                from model_loader import load_model
-                print("Cargando modelo en segundo plano, por favor espera...")
-                new_model = load_model(path)
-                if new_model:
-                    loaded_model = new_model
+        # Si hacemos clic en la mitad izquierda (la cámara)
+        if xpos < half_w:
+            with frame_lock:
+                if current_frame is not None:
+                    cam_h, cam_w = current_frame.shape[:2]
                     
-            threading.Thread(target=load_task).start()
+                    # Mapear coordenadas del click a píxeles de la cámara
+                    click_cam_x = (xpos / half_w) * cam_w
+                    click_cam_y = (ypos / win_h) * cam_h
+                    
+                    # Chequear si está dentro del área del botón (x: 10 a 220, y: 10 a 60)
+                    if 10 <= click_cam_x <= 220 and 10 <= click_cam_y <= 60:
+                        threading.Thread(target=open_file_dialog).start()
 
 def main():
     global running, current_frame, loaded_model
@@ -317,9 +346,10 @@ def main():
     glfw.make_context_current(window)
     glfw.swap_interval(1) # Vsync
     
-    # Registrar callbacks para interactividad básica (arrastrar y soltar, teclado)
+    # Registrar callbacks para interactividad básica
     glfw.set_drop_callback(window, drop_callback)
     glfw.set_key_callback(window, key_callback)
+    glfw.set_mouse_button_callback(window, mouse_button_callback)
     
     print("Esperando a la cámara...")
     time.sleep(1)
