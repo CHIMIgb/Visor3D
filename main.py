@@ -73,6 +73,9 @@ def camera_thread_func():
                 time.sleep(0.1)
                 continue
 
+            # Invertir la imagen horizontalmente para un efecto espejo "selfie"
+            image = cv2.flip(image, 1)
+
             # Convertir a RGB y crear mp.Image
             rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
