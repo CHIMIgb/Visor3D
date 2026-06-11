@@ -14,6 +14,8 @@ current_frame = None
 running = True
 loaded_model = None
 is_loading_model = False
+view_mode = 0
+current_landmarks_normalized = None
 
 # Conexiones de la mano para dibujar manualmente
 HAND_CONNECTIONS = [
@@ -84,6 +86,11 @@ def camera_thread_func():
             cv2.rectangle(image, (10, 10), (160, 40), (200, 200, 200), 1) # Borde sutil
             cv2.putText(image, "Abrir Modelo", (20, 30), cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 1)
             
+            # Botón Cambiar Vista
+            cv2.rectangle(image, (170, 10), (320, 40), (40, 40, 40), -1)
+            cv2.rectangle(image, (170, 10), (320, 40), (200, 200, 200), 1)
+            cv2.putText(image, "Vista (V)", (180, 30), cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 1)
+            
             # Dibujar indicador de carga animado si aplica
             if is_loading_model:
                 dots = int(time.time() * 3) % 4
@@ -104,6 +111,13 @@ def camera_thread_func():
 
             with frame_lock:
                 current_frame = rgb_image.copy()
+                if detection_result and detection_result.hand_landmarks:
+                    global current_landmarks_normalized
+                    current_landmarks_normalized = []
+                    for hl in detection_result.hand_landmarks:
+                        current_landmarks_normalized.append([(lm.x, lm.y, lm.z) for lm in hl])
+                else:
+                    current_landmarks_normalized = None
             
             time.sleep(0.01)
             
@@ -260,6 +274,49 @@ def draw_model(model_data):
     
     glDisable(GL_LIGHTING)
 
+def draw_skeleton_opengl(landmarks_list):
+    if not landmarks_list: return
+    
+    glDisable(GL_LIGHTING)
+    glDisable(GL_DEPTH_TEST) # dibujar SIEMPRE encima
+    
+    glMatrixMode(GL_PROJECTION)
+    glPushMatrix()
+    glLoadIdentity()
+    # MediaPipe: x=0 (left), x=1 (right), y=0 (top), y=1 (bottom)
+    # orthographic projection
+    glOrtho(0.0, 1.0, 1.0, 0.0, -1.0, 1.0)
+    
+    glMatrixMode(GL_MODELVIEW)
+    glPushMatrix()
+    glLoadIdentity()
+    
+    glLineWidth(3.0)
+    
+    for hand_lms in landmarks_list:
+        glColor3f(0.0, 0.8, 0.0) # Verde
+        glBegin(GL_LINES)
+        for connection in HAND_CONNECTIONS:
+            p1 = hand_lms[connection[0]]
+            p2 = hand_lms[connection[1]]
+            glVertex2f(p1[0], p1[1])
+            glVertex2f(p2[0], p2[1])
+        glEnd()
+        
+        glPointSize(8.0)
+        glColor3f(1.0, 0.2, 0.2) # Rojo
+        glBegin(GL_POINTS)
+        for p in hand_lms:
+            glVertex2f(p[0], p[1])
+        glEnd()
+        
+    glMatrixMode(GL_PROJECTION)
+    glPopMatrix()
+    glMatrixMode(GL_MODELVIEW)
+    glPopMatrix()
+    
+    glEnable(GL_DEPTH_TEST)
+
 def start_loading_model(path):
     def load_task():
         global loaded_model, is_loading_model
@@ -296,29 +353,42 @@ def open_file_dialog():
         start_loading_model(path)
 
 def key_callback(window, key, scancode, action, mods):
-    if key == glfw.KEY_O and action == glfw.PRESS:
-        # Llamar al hilo o función que abre el archivo
-        threading.Thread(target=open_file_dialog).start()
+    global view_mode
+    if action == glfw.PRESS:
+        if key == glfw.KEY_O:
+            threading.Thread(target=open_file_dialog).start()
+        elif key == glfw.KEY_V:
+            view_mode = (view_mode + 1) % 3
 
 def mouse_button_callback(window, button, action, mods):
+    global view_mode
     if button == glfw.MOUSE_BUTTON_LEFT and action == glfw.PRESS:
         xpos, ypos = glfw.get_cursor_pos(window)
         win_w, win_h = glfw.get_window_size(window)
-        half_w = win_w / 2.0
         
-        # Si hacemos clic en la mitad izquierda (la cámara)
-        if xpos < half_w:
-            with frame_lock:
-                if current_frame is not None:
-                    cam_h, cam_w = current_frame.shape[:2]
-                    
-                    # Mapear coordenadas del click a píxeles de la cámara
-                    click_cam_x = (xpos / half_w) * cam_w
+        is_click_on_camera = False
+        click_cam_x, click_cam_y = 0, 0
+        
+        with frame_lock:
+            if current_frame is not None:
+                cam_h, cam_w = current_frame.shape[:2]
+                
+                if view_mode == 0:
+                    half_w = win_w / 2.0
+                    if xpos < half_w:
+                        is_click_on_camera = True
+                        click_cam_x = (xpos / half_w) * cam_w
+                        click_cam_y = (ypos / win_h) * cam_h
+                elif view_mode == 2:
+                    is_click_on_camera = True
+                    click_cam_x = (xpos / win_w) * cam_w
                     click_cam_y = (ypos / win_h) * cam_h
-                    
-                    # Chequear si está dentro del área del botón (x: 10 a 160, y: 10 a 40)
+                
+                if is_click_on_camera:
                     if 10 <= click_cam_x <= 160 and 10 <= click_cam_y <= 40:
                         threading.Thread(target=open_file_dialog).start()
+                    if 170 <= click_cam_x <= 320 and 10 <= click_cam_y <= 40:
+                        view_mode = (view_mode + 1) % 3
 
 def main():
     global running, current_frame, loaded_model
@@ -373,20 +443,50 @@ def main():
         glViewport(0, 0, half_width, fb_height)
         
         frame_to_draw = None
+        lms_to_draw = None
         with frame_lock:
             if current_frame is not None:
                 frame_to_draw = current_frame.copy()
+            if current_landmarks_normalized is not None:
+                lms_to_draw = current_landmarks_normalized
                 
+        texture_id = None
         if frame_to_draw is not None:
             texture_id = create_texture(frame_to_draw)
-            draw_textured_quad(texture_id)
             
-        # ====== VIEWPORT DERECHO: Cubo 3D / Modelo ======
-        glViewport(half_width, 0, half_width, fb_height)
-        if loaded_model:
-            draw_model(loaded_model)
-        else:
-            draw_cube()
+        if view_mode == 0:
+            # ====== PANTALLA DIVIDIDA ======
+            glViewport(0, 0, half_width, fb_height)
+            if texture_id:
+                draw_textured_quad(texture_id)
+                texture_id = None
+                
+            glViewport(half_width, 0, half_width, fb_height)
+            if loaded_model: draw_model(loaded_model)
+            else: draw_cube()
+            
+        elif view_mode == 1:
+            # ====== HUD 3D ======
+            glViewport(0, 0, fb_width, fb_height)
+            if loaded_model: draw_model(loaded_model)
+            else: draw_cube()
+            
+            if lms_to_draw:
+                draw_skeleton_opengl(lms_to_draw)
+                
+            if texture_id:
+                glDeleteTextures([texture_id])
+                
+        elif view_mode == 2:
+            # ====== REALIDAD AUMENTADA ======
+            glViewport(0, 0, fb_width, fb_height)
+            if texture_id:
+                draw_textured_quad(texture_id)
+                texture_id = None
+                
+            glClear(GL_DEPTH_BUFFER_BIT)
+            if loaded_model: draw_model(loaded_model)
+            else: draw_cube()
         
         glfw.swap_buffers(window)
         
