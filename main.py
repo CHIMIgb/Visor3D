@@ -1,3 +1,4 @@
+import sys
 import cv2
 import mediapipe as mp
 import threading
@@ -198,8 +199,58 @@ def draw_cube():
             glVertex3fv(vertices[vertex])
     glEnd()
 
+def draw_model(model_data):
+    if not model_data:
+        return
+        
+    glEnable(GL_DEPTH_TEST)
+    
+    glMatrixMode(GL_PROJECTION)
+    glLoadIdentity()
+    gluPerspective(45, 1.0, 0.1, 50.0)
+    
+    glMatrixMode(GL_MODELVIEW)
+    glLoadIdentity()
+    # Movemos la cámara hacia atrás (modelo en el origen de tamaño [-1,1])
+    glTranslatef(0.0, 0.0, -3.0)
+    
+    # Rotación continua sobre el eje Y
+    glRotatef(glfw.get_time() * 30.0, 0, 1, 0)
+    
+    # Configuración de luz básica
+    glEnable(GL_LIGHTING)
+    glEnable(GL_LIGHT0)
+    glEnable(GL_COLOR_MATERIAL)
+    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
+    glLightfv(GL_LIGHT0, GL_POSITION, [1.0, 1.0, 1.0, 0.0])
+    
+    glColor3f(0.8, 0.8, 0.8) # Color base
+    
+    # Dibujar usando triángulos (Immediate mode para empezar, optimizable a VBO después)
+    glBegin(GL_TRIANGLES)
+    for face in model_data.faces:
+        for vertex_idx in face:
+            # Normales
+            if model_data.normals is not None and len(model_data.normals) > vertex_idx:
+                glNormal3fv(model_data.normals[vertex_idx])
+            # Colores de vértice
+            if model_data.colors is not None and len(model_data.colors) > vertex_idx:
+                glColor3fv(model_data.colors[vertex_idx])
+            # Vértice
+            glVertex3fv(model_data.vertices[vertex_idx])
+    glEnd()
+    
+    glDisable(GL_LIGHTING)
+
 def main():
     global running, current_frame
+    
+    from model_loader import load_model
+    
+    model_path = sys.argv[1] if len(sys.argv) > 1 else None
+    loaded_model = None
+    if model_path:
+        loaded_model = load_model(model_path)
     
     if not glfw.init():
         print("Error: No se pudo inicializar GLFW")
@@ -245,9 +296,12 @@ def main():
             texture_id = create_texture(frame_to_draw)
             draw_textured_quad(texture_id)
             
-        # ====== VIEWPORT DERECHO: Cubo 3D ======
+        # ====== VIEWPORT DERECHO: Cubo 3D / Modelo ======
         glViewport(half_width, 0, half_width, fb_height)
-        draw_cube()
+        if loaded_model:
+            draw_model(loaded_model)
+        else:
+            draw_cube()
         
         glfw.swap_buffers(window)
         
