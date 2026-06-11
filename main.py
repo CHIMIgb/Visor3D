@@ -178,13 +178,13 @@ def draw_textured_quad(texture_id):
     glDeleteTextures([texture_id])
     glDisable(GL_TEXTURE_2D)
 
-def draw_cube():
+def draw_cube(aspect_ratio):
     # Habilitar buffer de profundidad para 3D
     glEnable(GL_DEPTH_TEST)
     
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
-    gluPerspective(45, 1.0, 0.1, 50.0)
+    gluPerspective(45, aspect_ratio, 0.1, 50.0)
     
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
@@ -228,7 +228,7 @@ def draw_cube():
             glVertex3fv(vertices[vertex])
     glEnd()
 
-def draw_model(model_data):
+def draw_model(model_data, aspect_ratio):
     if not model_data:
         return
         
@@ -236,7 +236,7 @@ def draw_model(model_data):
     
     glMatrixMode(GL_PROJECTION)
     glLoadIdentity()
-    gluPerspective(45, 1.0, 0.1, 50.0)
+    gluPerspective(45, aspect_ratio, 0.1, 50.0)
     
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
@@ -352,6 +352,24 @@ def open_file_dialog():
     if path:
         start_loading_model(path)
 
+def get_aspect_correct_viewport(x, y, w, h, img_w, img_h):
+    if h == 0 or img_h == 0: return x, y, w, h
+    view_aspect = w / h
+    img_aspect = img_w / img_h
+    
+    if view_aspect > img_aspect:
+        new_w = int(h * img_aspect)
+        new_h = h
+        new_x = x + (w - new_w) // 2
+        new_y = y
+    else:
+        new_w = w
+        new_h = int(w / img_aspect)
+        new_x = x
+        new_y = y + (h - new_h) // 2
+        
+    return new_x, new_y, new_w, new_h
+
 def key_callback(window, key, scancode, action, mods):
     global view_mode
     if action == glfw.PRESS:
@@ -374,15 +392,18 @@ def mouse_button_callback(window, button, action, mods):
                 cam_h, cam_w = current_frame.shape[:2]
                 
                 if view_mode == 0:
-                    half_w = win_w / 2.0
-                    if xpos < half_w:
+                    half_w = win_w // 2
+                    vx, vy, vw, vh = get_aspect_correct_viewport(0, 0, half_w, win_h, cam_w, cam_h)
+                    if vx <= xpos <= vx + vw and vy <= ypos <= vy + vh:
                         is_click_on_camera = True
-                        click_cam_x = (xpos / half_w) * cam_w
-                        click_cam_y = (ypos / win_h) * cam_h
+                        click_cam_x = ((xpos - vx) / vw) * cam_w
+                        click_cam_y = ((ypos - vy) / vh) * cam_h
                 elif view_mode == 2:
-                    is_click_on_camera = True
-                    click_cam_x = (xpos / win_w) * cam_w
-                    click_cam_y = (ypos / win_h) * cam_h
+                    vx, vy, vw, vh = get_aspect_correct_viewport(0, 0, win_w, win_h, cam_w, cam_h)
+                    if vx <= xpos <= vx + vw and vy <= ypos <= vy + vh:
+                        is_click_on_camera = True
+                        click_cam_x = ((xpos - vx) / vw) * cam_w
+                        click_cam_y = ((ypos - vy) / vh) * cam_h
                 
                 if is_click_on_camera:
                     if 10 <= click_cam_x <= 160 and 10 <= click_cam_y <= 40:
@@ -451,27 +472,34 @@ def main():
                 lms_to_draw = current_landmarks_normalized
                 
         texture_id = None
+        cam_w, cam_h = 640, 480
         if frame_to_draw is not None:
             texture_id = create_texture(frame_to_draw)
+            cam_h, cam_w = frame_to_draw.shape[:2]
             
         if view_mode == 0:
             # ====== PANTALLA DIVIDIDA ======
-            glViewport(0, 0, half_width, fb_height)
+            vx, vy, vw, vh = get_aspect_correct_viewport(0, 0, half_width, fb_height, cam_w, cam_h)
+            glViewport(vx, vy, vw, vh)
             if texture_id:
                 draw_textured_quad(texture_id)
                 texture_id = None
                 
             glViewport(half_width, 0, half_width, fb_height)
-            if loaded_model: draw_model(loaded_model)
-            else: draw_cube()
+            aspect = half_width / fb_height if fb_height > 0 else 1.0
+            if loaded_model: draw_model(loaded_model, aspect)
+            else: draw_cube(aspect)
             
         elif view_mode == 1:
             # ====== HUD 3D ======
             glViewport(0, 0, fb_width, fb_height)
-            if loaded_model: draw_model(loaded_model)
-            else: draw_cube()
+            aspect = fb_width / fb_height if fb_height > 0 else 1.0
+            if loaded_model: draw_model(loaded_model, aspect)
+            else: draw_cube(aspect)
             
             if lms_to_draw:
+                vx, vy, vw, vh = get_aspect_correct_viewport(0, 0, fb_width, fb_height, cam_w, cam_h)
+                glViewport(vx, vy, vw, vh)
                 draw_skeleton_opengl(lms_to_draw)
                 
             if texture_id:
@@ -479,14 +507,17 @@ def main():
                 
         elif view_mode == 2:
             # ====== REALIDAD AUMENTADA ======
-            glViewport(0, 0, fb_width, fb_height)
+            vx, vy, vw, vh = get_aspect_correct_viewport(0, 0, fb_width, fb_height, cam_w, cam_h)
+            glViewport(vx, vy, vw, vh)
             if texture_id:
                 draw_textured_quad(texture_id)
                 texture_id = None
                 
             glClear(GL_DEPTH_BUFFER_BIT)
-            if loaded_model: draw_model(loaded_model)
-            else: draw_cube()
+            glViewport(0, 0, fb_width, fb_height)
+            aspect = fb_width / fb_height if fb_height > 0 else 1.0
+            if loaded_model: draw_model(loaded_model, aspect)
+            else: draw_cube(aspect)
         
         glfw.swap_buffers(window)
         
