@@ -206,7 +206,7 @@ def process_gestures(landmarks_list):
                 dy = smooth_palm_pos[1] - last_palm_pos[1]
                 if abs(dx) > DEADZONE or abs(dy) > DEADZONE:
                     config.camera_pan_x -= dx * 6.0  
-                    config.camera_pan_y -= dy * 6.0  
+                    config.camera_pan_y += dy * 6.0  
                     last_palm_pos = smooth_palm_pos
                     
                 # 2. Rotación (Inclinación Z y Ángulo 2D)
@@ -216,7 +216,7 @@ def process_gestures(landmarks_list):
                 
                 if abs(dyaw) > 0.001 or abs(dpitch) > 0.001 or abs(droll) > 0.01:
                     config.camera_yaw += dyaw * 4000.0     
-                    config.camera_pitch += dpitch * 4000.0 
+                    config.camera_pitch -= dpitch * 4000.0 
                     config.camera_roll -= droll * 50.0     
                     
                     if config.camera_pitch > 89.0: config.camera_pitch = 89.0
