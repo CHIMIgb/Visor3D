@@ -1,6 +1,7 @@
 import glfw
 import threading
 import config
+import os
 from model_loader import load_model
 
 def start_loading_model(path):
@@ -97,3 +98,53 @@ def scroll_callback(window, xoffset, yoffset):
     config.camera_distance -= yoffset * 0.5
     if config.camera_distance < 0.5: config.camera_distance = 0.5
     if config.camera_distance > 50.0: config.camera_distance = 50.0
+
+def handle_gesture_click(cursor_x, cursor_y):
+    # Convertir (0-1) a coordenadas de pantalla (espejado)
+    win_w = config.window_width
+    win_h = config.window_height
+    xpos = (1.0 - cursor_x) * win_w
+    ypos = cursor_y * win_h
+    
+    if not config.is_explorer_open:
+        # Chequear click en botones superiores
+        if 10 <= ypos <= 40:
+            if 10 <= xpos <= 160:
+                config.is_explorer_open = True
+                return
+            elif 170 <= xpos <= 320:
+                config.view_mode = (config.view_mode + 1) % 3
+                return
+            elif 330 <= xpos <= 480:
+                config.current_render_mode_idx = (config.current_render_mode_idx + 1) % len(config.render_modes)
+                return
+            elif 490 <= xpos <= 640:
+                config.show_grid = not config.show_grid
+                return
+            elif 650 <= xpos <= 800:
+                config.show_gestures_menu = not config.show_gestures_menu
+                return
+    else:
+        # Explorador abierto
+        panel_w = 600
+        panel_h = 400
+        px = (win_w - panel_w) // 2
+        py = (win_h - panel_h) // 2
+        
+        if px < xpos < px + panel_w and py < ypos < py + panel_h:
+            # Click dentro del panel
+            if config.hovered_item:
+                item = config.hovered_item
+                if item == "..":
+                    config.current_path = os.path.dirname(config.current_path)
+                    config.explorer_scroll_y = 0
+                elif item.startswith("[DIR] "):
+                    config.current_path = os.path.join(config.current_path, item[6:])
+                    config.explorer_scroll_y = 0
+                else:
+                    path = os.path.join(config.current_path, item)
+                    config.is_explorer_open = False
+                    start_loading_model(path)
+        else:
+            # Click fuera, cerrar explorador
+            config.is_explorer_open = False

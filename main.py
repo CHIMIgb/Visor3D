@@ -9,7 +9,7 @@ import config
 from camera_tracker import camera_thread_func
 from opengl_renderer import *
 from input_handlers import drop_callback, key_callback, mouse_button_callback, cursor_position_callback, scroll_callback
-from ui_overlay import get_ui_texture
+from ui_overlay import get_ui_texture, get_explorer_texture
 
 def main():
     if len(sys.argv) > 1:
@@ -127,8 +127,21 @@ def main():
             ui_h, ui_w = ui_img.shape[:2]
             glViewport(0, 0, fb_width, fb_height)
             win_w, win_h = glfw.get_window_size(window)
+            config.window_width = win_w
+            config.window_height = win_h
             draw_ui_overlay(ui_tex, win_w, win_h, ui_w, ui_h)
             glDeleteTextures([ui_tex])
+            
+        # ====== EXPLORADOR HOLOGRÁFICO ======
+        if config.is_explorer_open:
+            exp_img = get_explorer_texture(win_w, win_h)
+            if exp_img is not None:
+                exp_tex = create_texture(exp_img)
+                if exp_tex:
+                    exp_h, exp_w = exp_img.shape[:2]
+                    glViewport(0, 0, fb_width, fb_height)
+                    draw_ui_overlay(exp_tex, win_w, win_h, exp_w, exp_h)
+                    glDeleteTextures([exp_tex])
         
         glfw.swap_buffers(window)
         

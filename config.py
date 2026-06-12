@@ -1,4 +1,5 @@
 import threading
+import os
 
 # Variables globales compartidas entre hilos y módulos
 frame_lock = threading.Lock()
@@ -26,6 +27,17 @@ camera_pan_y = 0.0
 # Fase 4: Gestos
 detected_gestures = []
 show_gestures_menu = False
+
+# Fase 6: UI Explorer
+is_explorer_open = False
+current_path = os.getcwd()
+recent_files = []
+cursor_x = 0.5
+cursor_y = 0.5
+explorer_scroll_y = 0.0
+hovered_item = None
+window_width = 800
+window_height = 600
 
 # Para control con ratón
 is_mouse_dragging = False
