@@ -1,7 +1,10 @@
 import sys
+import os
 import threading
 import time
 import glfw
+import numpy as np
+import cv2
 from OpenGL.GL import *
 from OpenGL.GLU import *
 
@@ -9,12 +12,15 @@ import config
 from camera_tracker import camera_thread_func
 from opengl_renderer import *
 from input_handlers import drop_callback, key_callback, mouse_button_callback, cursor_position_callback, scroll_callback
-from ui_overlay import get_ui_texture, get_explorer_texture
+from ui_overlay import get_ui_texture, get_model_info_texture
 
 def main():
     if len(sys.argv) > 1:
         from model_loader import load_model
-        config.loaded_model = load_model(sys.argv[1])
+        model = load_model(sys.argv[1])
+        if model:
+            config.loaded_models.append(model)
+            config.active_model_idx = 0
     
     if not glfw.init():
         print("Error: No se pudo inicializar GLFW")
@@ -46,6 +52,9 @@ def main():
     glfw.set_cursor_pos_callback(window, cursor_position_callback)
     glfw.set_scroll_callback(window, scroll_callback)
     
+    # Crear carpeta de capturas
+    os.makedirs("capturas", exist_ok=True)
+    
     print("Esperando a la cámara...")
     time.sleep(1)
     
@@ -71,6 +80,11 @@ def main():
         if frame_to_draw is not None:
             texture_id = create_texture(frame_to_draw)
             cam_h, cam_w = frame_to_draw.shape[:2]
+        
+        # Obtener modelo activo
+        active_model = None
+        if config.loaded_models and config.active_model_idx < len(config.loaded_models):
+            active_model = config.loaded_models[config.active_model_idx]
             
         if config.view_mode == 0:
             # ====== PANTALLA DIVIDIDA ======
@@ -85,14 +99,14 @@ def main():
                 
             glViewport(half_width, 0, half_width, fb_height)
             aspect = half_width / fb_height if fb_height > 0 else 1.0
-            if config.loaded_model: draw_model(config.loaded_model, aspect)
+            if active_model: draw_model(active_model, aspect)
             else: draw_cube(aspect)
             
         elif config.view_mode == 1:
             # ====== HUD 3D ======
             glViewport(0, 0, fb_width, fb_height)
             aspect = fb_width / fb_height if fb_height > 0 else 1.0
-            if config.loaded_model: draw_model(config.loaded_model, aspect)
+            if active_model: draw_model(active_model, aspect)
             else: draw_cube(aspect)
             
             if lms_to_draw:
@@ -117,31 +131,45 @@ def main():
             glClear(GL_DEPTH_BUFFER_BIT)
             glViewport(0, 0, fb_width, fb_height)
             aspect = fb_width / fb_height if fb_height > 0 else 1.0
-            if config.loaded_model: draw_model(config.loaded_model, aspect)
+            if active_model: draw_model(active_model, aspect)
             else: draw_cube(aspect)
             
         # ====== OVERLAY UI ======
+        win_w, win_h = glfw.get_window_size(window)
+        
         ui_img = get_ui_texture(config.is_loading_model)
         ui_tex = create_texture(ui_img)
         if ui_tex:
             ui_h, ui_w = ui_img.shape[:2]
             glViewport(0, 0, fb_width, fb_height)
-            win_w, win_h = glfw.get_window_size(window)
-            config.window_width = win_w
-            config.window_height = win_h
             draw_ui_overlay(ui_tex, win_w, win_h, ui_w, ui_h)
             glDeleteTextures([ui_tex])
             
-        # ====== EXPLORADOR HOLOGRÁFICO ======
-        if config.is_explorer_open:
-            exp_img = get_explorer_texture(win_w, win_h)
-            if exp_img is not None:
-                exp_tex = create_texture(exp_img)
-                if exp_tex:
-                    exp_h, exp_w = exp_img.shape[:2]
-                    glViewport(0, 0, fb_width, fb_height)
-                    draw_ui_overlay(exp_tex, win_w, win_h, exp_w, exp_h)
-                    glDeleteTextures([exp_tex])
+        # ====== INFO DEL MODELO ======
+        info_img = get_model_info_texture(win_w, win_h)
+        if info_img is not None:
+            info_tex = create_texture(info_img)
+            if info_tex:
+                info_h, info_w = info_img.shape[:2]
+                glViewport(0, 0, fb_width, fb_height)
+                draw_ui_overlay(info_tex, win_w, win_h, info_w, info_h)
+                glDeleteTextures([info_tex])
+        
+        # ====== CAPTURA DE PANTALLA ======
+        if config.take_screenshot:
+            config.take_screenshot = False
+            try:
+                pixels = glReadPixels(0, 0, fb_width, fb_height, GL_RGB, GL_UNSIGNED_BYTE)
+                image = np.frombuffer(pixels, dtype=np.uint8).reshape(fb_height, fb_width, 3)
+                image = cv2.flip(image, 0)  # Flip vertical
+                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                filepath = f"capturas/captura_{timestamp}.png"
+                cv2.imwrite(filepath, image)
+                print(f"Captura guardada: {filepath}")
+                config.screenshot_feedback_time = time.time()
+            except Exception as e:
+                print(f"Error al capturar pantalla: {e}")
         
         glfw.swap_buffers(window)
         

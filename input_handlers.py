@@ -1,7 +1,7 @@
 import glfw
 import threading
+import time
 import config
-import os
 from model_loader import load_model
 
 def start_loading_model(path):
@@ -11,7 +11,12 @@ def start_loading_model(path):
             print("Cargando modelo en segundo plano, por favor espera...")
             new_model = load_model(path)
             if new_model:
-                config.loaded_model = new_model
+                # Multi-modelo: añadir a la lista (máx 5)
+                if len(config.loaded_models) >= 5:
+                    config.loaded_models[config.active_model_idx] = new_model
+                else:
+                    config.loaded_models.append(new_model)
+                    config.active_model_idx = len(config.loaded_models) - 1
         finally:
             config.is_loading_model = False
             
@@ -47,6 +52,42 @@ def key_callback(window, key, scancode, action, mods):
             config.current_render_mode_idx = (config.current_render_mode_idx + 1) % len(config.render_modes)
         elif key == glfw.KEY_G:
             config.show_grid = not config.show_grid
+        # Fase 7: Nuevos atajos
+        elif key == glfw.KEY_C:
+            config.current_color_idx = (config.current_color_idx + 1) % len(config.color_palette)
+            config.color_feedback_time = time.time()
+        elif key == glfw.KEY_L:
+            config.light_mode = not config.light_mode
+        elif key == glfw.KEY_S:
+            config.clip_plane_enabled = not config.clip_plane_enabled
+        elif key == glfw.KEY_X:
+            if config.clip_plane_enabled:
+                config.clip_plane_axis = (config.clip_plane_axis + 1) % 3
+        elif key == glfw.KEY_I:
+            config.show_model_info = not config.show_model_info
+        elif key == glfw.KEY_P:
+            config.take_screenshot = True
+        elif key == glfw.KEY_LEFT:
+            if len(config.loaded_models) > 1:
+                config.active_model_idx = (config.active_model_idx - 1) % len(config.loaded_models)
+        elif key == glfw.KEY_RIGHT:
+            if len(config.loaded_models) > 1:
+                config.active_model_idx = (config.active_model_idx + 1) % len(config.loaded_models)
+        elif key == glfw.KEY_DELETE:
+            if len(config.loaded_models) > 0:
+                # Invalidar display list antes de borrar
+                model = config.loaded_models[config.active_model_idx]
+                if hasattr(model, 'display_list_id'):
+                    from OpenGL.GL import glDeleteLists
+                    try:
+                        glDeleteLists(model.display_list_id, 1)
+                    except:
+                        pass
+                config.loaded_models.pop(config.active_model_idx)
+                if config.active_model_idx >= len(config.loaded_models) and len(config.loaded_models) > 0:
+                    config.active_model_idx = len(config.loaded_models) - 1
+                elif len(config.loaded_models) == 0:
+                    config.active_model_idx = 0
 
 def mouse_button_callback(window, button, action, mods):
     if button == glfw.MOUSE_BUTTON_LEFT:
@@ -84,67 +125,26 @@ def cursor_position_callback(window, xpos, ypos):
         dx = xpos - config.last_mouse_x
         dy = ypos - config.last_mouse_y
         
-        config.camera_yaw += dx * 0.5
-        config.camera_pitch += dy * 0.5
-        
-        # Limitar el pitch para no dar la vuelta completa por arriba/abajo
-        if config.camera_pitch > 89.0: config.camera_pitch = 89.0
-        if config.camera_pitch < -89.0: config.camera_pitch = -89.0
+        if config.light_mode:
+            config.light_yaw += dx * 0.02
+            config.light_pitch += dy * 0.02
+            if config.light_pitch > 1.5: config.light_pitch = 1.5
+            if config.light_pitch < -1.5: config.light_pitch = -1.5
+        else:
+            config.camera_yaw += dx * 0.5
+            config.camera_pitch += dy * 0.5
+            if config.camera_pitch > 89.0: config.camera_pitch = 89.0
+            if config.camera_pitch < -89.0: config.camera_pitch = -89.0
         
         config.last_mouse_x = xpos
         config.last_mouse_y = ypos
 
 def scroll_callback(window, xoffset, yoffset):
-    config.camera_distance -= yoffset * 0.5
-    if config.camera_distance < 0.5: config.camera_distance = 0.5
-    if config.camera_distance > 50.0: config.camera_distance = 50.0
-
-def handle_gesture_click(cursor_x, cursor_y):
-    # Convertir (0-1) a coordenadas de pantalla (espejado)
-    win_w = config.window_width
-    win_h = config.window_height
-    xpos = (1.0 - cursor_x) * win_w
-    ypos = cursor_y * win_h
-    
-    if not config.is_explorer_open:
-        # Chequear click en botones superiores
-        if 10 <= ypos <= 40:
-            if 10 <= xpos <= 160:
-                config.is_explorer_open = True
-                return
-            elif 170 <= xpos <= 320:
-                config.view_mode = (config.view_mode + 1) % 3
-                return
-            elif 330 <= xpos <= 480:
-                config.current_render_mode_idx = (config.current_render_mode_idx + 1) % len(config.render_modes)
-                return
-            elif 490 <= xpos <= 640:
-                config.show_grid = not config.show_grid
-                return
-            elif 650 <= xpos <= 800:
-                config.show_gestures_menu = not config.show_gestures_menu
-                return
+    if config.clip_plane_enabled:
+        config.clip_plane_position += yoffset * 0.1
+        if config.clip_plane_position < -2.0: config.clip_plane_position = -2.0
+        if config.clip_plane_position > 2.0: config.clip_plane_position = 2.0
     else:
-        # Explorador abierto
-        panel_w = 600
-        panel_h = 400
-        px = (win_w - panel_w) // 2
-        py = (win_h - panel_h) // 2
-        
-        if px < xpos < px + panel_w and py < ypos < py + panel_h:
-            # Click dentro del panel
-            if config.hovered_item:
-                item = config.hovered_item
-                if item == "..":
-                    config.current_path = os.path.dirname(config.current_path)
-                    config.explorer_scroll_y = 0
-                elif item.startswith("[DIR] "):
-                    config.current_path = os.path.join(config.current_path, item[6:])
-                    config.explorer_scroll_y = 0
-                else:
-                    path = os.path.join(config.current_path, item)
-                    config.is_explorer_open = False
-                    start_loading_model(path)
-        else:
-            # Click fuera, cerrar explorador
-            config.is_explorer_open = False
+        config.camera_distance -= yoffset * 0.5
+        if config.camera_distance < 0.5: config.camera_distance = 0.5
+        if config.camera_distance > 50.0: config.camera_distance = 50.0

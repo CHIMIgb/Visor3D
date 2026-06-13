@@ -1,13 +1,11 @@
 import cv2
 import numpy as np
 import time
-import os
 import config
 
 def get_ui_texture(is_loading):
     """
-    Genera una imagen RGBA transparente con los botones dibujados.
-    Ahora incluye los botones para los modos de la Fase 3.
+    Genera una imagen RGBA transparente con los botones y feedback visual.
     """
     img = np.zeros((200, 820, 4), dtype=np.uint8)
     
@@ -22,7 +20,6 @@ def get_ui_texture(is_loading):
     cv2.putText(img, "Vista (V)", (180, 30), cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255, 255), 1)
     
     # Botón Modo Renderizado (x=330 a 480)
-    mode_str = config.render_modes[config.current_render_mode_idx]
     cv2.rectangle(img, (330, 10), (480, 40), (40, 40, 40, 200), -1)
     cv2.rectangle(img, (330, 10), (480, 40), (200, 200, 200, 255), 1)
     cv2.putText(img, f"Modo (M)", (340, 30), cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255, 255), 1)
@@ -41,19 +38,18 @@ def get_ui_texture(is_loading):
         cv2.rectangle(img, (10, 50), (160, 80), (0, 200, 255, 255), 1)
         cv2.putText(img, loading_text, (20, 70), cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 200, 255, 255), 1)
         
-    # Mostrar gesto actual (Modo Debug Fase 4)
+    # Mostrar gesto actual
     if config.detected_gestures:
         gestures_str = ", ".join(config.detected_gestures)
-        cv2.putText(img, f"Gesto: {gestures_str}", (10, 90), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0, 255, 0, 255), 2)
+        cv2.putText(img, f"Gesto: {gestures_str}", (10, 100), cv2.FONT_HERSHEY_COMPLEX, 0.7, (0, 255, 0, 255), 2)
         
     # Botón Gestos (x=650 a 800)
-    gestos_str = "Gestos" if config.show_gestures_menu else "Gestos"
     cv2.rectangle(img, (650, 10), (800, 40), (40, 40, 40, 200), -1)
     if config.show_gestures_menu:
         cv2.rectangle(img, (650, 10), (800, 40), (0, 255, 0, 255), 2)
     else:
         cv2.rectangle(img, (650, 10), (800, 40), (200, 200, 200, 255), 1)
-    cv2.putText(img, gestos_str, (695, 30), cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255, 255), 1)
+    cv2.putText(img, "Gestos", (695, 30), cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255, 255), 1)
         
     # Leyenda de Gestos
     if config.show_gestures_menu:
@@ -65,80 +61,72 @@ def get_ui_texture(is_loading):
         cv2.putText(img, "- 2 Dedos (V): Rotar Z", (650, start_y + 80), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
         cv2.putText(img, "- 2 Manos: Reset", (650, start_y + 100), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
         
+    # ====== FEEDBACK FASE 7 ======
+    now = time.time()
+    
+    # Feedback de Color (C)
+    if now - config.color_feedback_time < 2.0:
+        color_rgb = config.color_palette[config.current_color_idx]
+        color_bgra = (int(color_rgb[2]*255), int(color_rgb[1]*255), int(color_rgb[0]*255), 255)
+        name = config.color_names[config.current_color_idx]
+        cv2.rectangle(img, (10, 120), (180, 155), color_bgra, -1)
+        cv2.rectangle(img, (10, 120), (180, 155), (255, 255, 255, 255), 1)
+        cv2.putText(img, f"Color: {name}", (18, 143), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255, 255), 1)
+    
+    # Indicador Modo Luz (L)
+    if config.light_mode:
+        cv2.rectangle(img, (190, 120), (340, 155), (0, 200, 255, 200), -1)
+        cv2.putText(img, "LUZ ACTIVA", (200, 143), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0, 255), 1)
+    
+    # Indicador Clip Plane (S)
+    if config.clip_plane_enabled:
+        axis_names = ["X", "Y", "Z"]
+        axis = axis_names[config.clip_plane_axis]
+        pos = config.clip_plane_position
+        cv2.rectangle(img, (350, 120), (530, 155), (0, 0, 200, 200), -1)
+        cv2.putText(img, f"CORTE {axis}: {pos:.1f}", (360, 143), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255, 255), 1)
+    
+    # Indicador Multi-modelo
+    if len(config.loaded_models) > 1:
+        total = len(config.loaded_models)
+        idx = config.active_model_idx + 1
+        cv2.rectangle(img, (540, 120), (640, 155), (40, 40, 40, 200), -1)
+        cv2.rectangle(img, (540, 120), (640, 155), (200, 200, 200, 255), 1)
+        cv2.putText(img, f"M {idx}/{total}", (550, 143), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255, 255), 1)
+    
+    # Flash de Captura de Pantalla
+    if now - config.screenshot_feedback_time < 0.5:
+        alpha = int(255 * max(0, 1.0 - (now - config.screenshot_feedback_time) / 0.5))
+        cv2.rectangle(img, (0, 0), (820, 200), (255, 255, 255, alpha), -1)
+        cv2.putText(img, "Captura Guardada!", (250, 30), cv2.FONT_HERSHEY_COMPLEX, 0.8, (0, 200, 0, 255), 2)
+        
     return img
 
-def get_explorer_texture(win_w, win_h):
-    if not config.is_explorer_open: return None
+def get_model_info_texture(win_w, win_h):
+    """
+    Panel de información del modelo activo.
+    """
+    if not config.show_model_info:
+        return None
+    if not config.loaded_models:
+        return None
+        
+    model = config.loaded_models[config.active_model_idx]
     
     img = np.zeros((win_h, win_w, 4), dtype=np.uint8)
     
-    # Oscurecer el fondo
-    cv2.rectangle(img, (0, 0), (win_w, win_h), (0, 0, 0, 180), -1)
+    # Panel en esquina inferior derecha
+    pw, ph = 280, 140
+    px = win_w - pw - 10
+    py = win_h - ph - 10
     
-    # Dibujar ventana del explorador
-    panel_w = 600
-    panel_h = 400
-    px = (win_w - panel_w) // 2
-    py = (win_h - panel_h) // 2
+    cv2.rectangle(img, (px, py), (px + pw, py + ph), (20, 20, 20, 220), -1)
+    cv2.rectangle(img, (px, py), (px + pw, py + ph), (0, 200, 255, 255), 1)
     
-    cv2.rectangle(img, (px, py), (px + panel_w, py + panel_h), (40, 40, 40, 240), -1)
-    cv2.rectangle(img, (px, py), (px + panel_w, py + panel_h), (0, 200, 255, 255), 2)
-    
-    cv2.putText(img, "Explorador Holografico 3D", (px + 20, py + 40), cv2.FONT_HERSHEY_COMPLEX, 0.8, (255, 255, 255, 255), 1)
-    cv2.putText(img, f"Ruta: {config.current_path}", (px + 20, py + 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 150, 255), 1)
-    
-    try:
-        items = os.listdir(config.current_path)
-    except:
-        items = []
-        
-    valid_items = [".."]
-    for item in items:
-        try:
-            full_path = os.path.join(config.current_path, item)
-            if os.path.isdir(full_path):
-                valid_items.append("[DIR] " + item)
-            elif item.lower().endswith(('.obj', '.stl', '.ply', '.glb', '.gltf')):
-                valid_items.append(item)
-        except:
-            pass
-            
-    item_height = 30
-    start_y = py + 100
-    
-    # Cursor
-    # Efecto espejo en el cursor
-    cursor_px = int((1.0 - config.cursor_x) * win_w)
-    cursor_py = int(config.cursor_y * win_h)
-    
-    # Auto-scroll
-    if px < cursor_px < px + panel_w:
-        if py < cursor_py < py + 90:
-            config.explorer_scroll_y -= 0.5
-        elif py + panel_h - 50 < cursor_py < py + panel_h:
-            config.explorer_scroll_y += 0.5
-            
-    if config.explorer_scroll_y < 0: config.explorer_scroll_y = 0
-    max_scroll = max(0, len(valid_items) - 8)
-    if config.explorer_scroll_y > max_scroll: config.explorer_scroll_y = max_scroll
-    
-    idx_start = int(config.explorer_scroll_y)
-    
-    config.hovered_item = None
-    for i, item in enumerate(valid_items[idx_start:idx_start+8]):
-        item_y = start_y + i * item_height
-        
-        is_hovered = (px + 20 < cursor_px < px + panel_w - 20) and (item_y - 20 < cursor_py < item_y + 10)
-        
-        color = (0, 255, 0, 255) if is_hovered else (200, 200, 200, 255)
-        if is_hovered:
-            cv2.rectangle(img, (px + 20, item_y - 22), (px + panel_w - 20, item_y + 8), (80, 80, 80, 255), -1)
-            config.hovered_item = item
-            
-        cv2.putText(img, item, (px + 30, item_y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 1)
-        
-    # Dibujar cursor interactivo
-    cv2.circle(img, (cursor_px, cursor_py), 6, (0, 0, 255, 255), -1) 
-    cv2.circle(img, (cursor_px, cursor_py), 12, (0, 200, 255, 255), 2) 
+    cv2.putText(img, "Info Modelo", (px + 10, py + 25), cv2.FONT_HERSHEY_COMPLEX, 0.6, (0, 200, 255, 255), 1)
+    cv2.putText(img, f"Nombre: {model.file_name}", (px + 10, py + 50), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
+    cv2.putText(img, f"Vertices: {model.vertex_count:,}", (px + 10, py + 75), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
+    cv2.putText(img, f"Triangulos: {model.face_count:,}", (px + 10, py + 100), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
+    cv2.putText(img, f"Tamano: {model.file_size_mb:.2f} MB", (px + 10, py + 125), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
     
     return img

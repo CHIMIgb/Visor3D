@@ -1,4 +1,5 @@
 import glfw
+import math
 from OpenGL.GL import *
 from OpenGL.GLU import *
 import numpy as np
@@ -117,8 +118,12 @@ def set_lighting():
     glLightfv(GL_LIGHT0, GL_AMBIENT, [0.3, 0.3, 0.3, 1.0])
     glLightfv(GL_LIGHT0, GL_DIFFUSE, [0.8, 0.8, 0.8, 1.0])
     glLightfv(GL_LIGHT0, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
-    # Luz direccional desde arriba y derecha
-    glLightfv(GL_LIGHT0, GL_POSITION, [1.0, 1.0, 1.0, 0.0])
+    
+    # Fase 7: Posición dinámica de la luz (coordenadas esféricas)
+    lx = math.cos(config.light_pitch) * math.sin(config.light_yaw)
+    ly = math.sin(config.light_pitch)
+    lz = math.cos(config.light_pitch) * math.cos(config.light_yaw)
+    glLightfv(GL_LIGHT0, GL_POSITION, [lx, ly, lz, 0.0])
     
     glEnable(GL_COLOR_MATERIAL)
     glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
@@ -127,6 +132,60 @@ def set_lighting():
     
     # Asegurar que las normales sean unitarias tras escalar
     glEnable(GL_NORMALIZE)
+
+def setup_clip_plane():
+    """Activa el plano de corte si está habilitado."""
+    if not config.clip_plane_enabled:
+        glDisable(GL_CLIP_PLANE0)
+        return
+        
+    glEnable(GL_CLIP_PLANE0)
+    # Ecuación del plano: Ax + By + Cz + D = 0
+    axis = config.clip_plane_axis
+    pos = config.clip_plane_position
+    if axis == 0:  # X
+        equation = [1.0, 0.0, 0.0, pos]
+    elif axis == 1:  # Y
+        equation = [0.0, 1.0, 0.0, pos]
+    else:  # Z
+        equation = [0.0, 0.0, 1.0, pos]
+    glClipPlane(GL_CLIP_PLANE0, equation)
+
+def draw_clip_plane_visual():
+    """Dibuja un quad semitransparente donde está el plano de corte."""
+    if not config.clip_plane_enabled:
+        return
+        
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    glDisable(GL_LIGHTING)
+    glDisable(GL_CLIP_PLANE0)  # No clipear el propio plano visual
+    
+    glColor4f(1.0, 0.0, 0.0, 0.15)
+    
+    axis = config.clip_plane_axis
+    pos = -config.clip_plane_position  # Negado porque la ecuación es Ax+By+Cz+D=0
+    size = 3.0
+    
+    glBegin(GL_QUADS)
+    if axis == 0:  # X
+        glVertex3f(pos, -size, -size)
+        glVertex3f(pos,  size, -size)
+        glVertex3f(pos,  size,  size)
+        glVertex3f(pos, -size,  size)
+    elif axis == 1:  # Y
+        glVertex3f(-size, pos, -size)
+        glVertex3f( size, pos, -size)
+        glVertex3f( size, pos,  size)
+        glVertex3f(-size, pos,  size)
+    else:  # Z
+        glVertex3f(-size, -size, pos)
+        glVertex3f( size, -size, pos)
+        glVertex3f( size,  size, pos)
+        glVertex3f(-size,  size, pos)
+    glEnd()
+    
+    glDisable(GL_BLEND)
 
 def execute_render_mode(render_func):
     mode = config.render_modes[config.current_render_mode_idx]
@@ -197,24 +256,48 @@ def draw_cube(aspect_ratio):
     glLoadIdentity()
     gluPerspective(45, aspect_ratio, 0.1, 50.0)
     apply_camera()
+    setup_clip_plane()
     draw_grid()
     execute_render_mode(render_cube_geometry)
+    draw_clip_plane_visual()
+    glDisable(GL_CLIP_PLANE0)
 
 def render_model_geometry(model_data):
-    glColor3f(0.8, 0.8, 0.8)
-    if not hasattr(model_data, 'display_list_id'):
+    # Fase 7: Aplicar color de la paleta
+    palette_color = config.color_palette[config.current_color_idx]
+    
+    if model_data.colors is not None:
+        # El modelo tiene colores propios - si no es gris (idx 0), aplicamos tinte
+        if config.current_color_idx == 0:
+            glColor3f(0.8, 0.8, 0.8)  # Color por defecto, dejamos los colores del modelo
+        else:
+            glColor3fv(palette_color)  # Sobrescribir con color de paleta
+    else:
+        glColor3fv(palette_color)
+    
+    if not hasattr(model_data, 'display_list_id') or model_data.display_list_id is None:
         model_data.display_list_id = glGenLists(1)
+        model_data._cached_color_idx = config.current_color_idx
         glNewList(model_data.display_list_id, GL_COMPILE)
         glBegin(GL_TRIANGLES)
         for face in model_data.faces:
             for vertex_idx in face:
                 if model_data.normals is not None and len(model_data.normals) > vertex_idx:
                     glNormal3fv(model_data.normals[vertex_idx])
-                if model_data.colors is not None and len(model_data.colors) > vertex_idx:
+                if model_data.colors is not None and len(model_data.colors) > vertex_idx and config.current_color_idx == 0:
                     glColor3fv(model_data.colors[vertex_idx])
                 glVertex3fv(model_data.vertices[vertex_idx])
         glEnd()
         glEndList()
+    
+    # Invalidar display list si el color cambió
+    if hasattr(model_data, '_cached_color_idx') and model_data._cached_color_idx != config.current_color_idx:
+        glDeleteLists(model_data.display_list_id, 1)
+        model_data.display_list_id = None
+        model_data._cached_color_idx = config.current_color_idx
+        render_model_geometry(model_data)  # Reconstruir
+        return
+        
     glCallList(model_data.display_list_id)
 
 def draw_model(model_data, aspect_ratio):
@@ -224,8 +307,11 @@ def draw_model(model_data, aspect_ratio):
     glLoadIdentity()
     gluPerspective(45, aspect_ratio, 0.1, 50.0)
     apply_camera()
+    setup_clip_plane()
     draw_grid()
     execute_render_mode(lambda: render_model_geometry(model_data))
+    draw_clip_plane_visual()
+    glDisable(GL_CLIP_PLANE0)
 
 def draw_skeleton_opengl(landmarks_list):
     if not landmarks_list: return

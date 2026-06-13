@@ -7,6 +7,10 @@ class ModelData:
         self.faces = faces
         self.normals = normals
         self.colors = colors
+        self.file_name = ""
+        self.file_size_mb = 0.0
+        self.vertex_count = len(vertices)
+        self.face_count = len(faces)
 
 def normalize_model(vertices):
     """
@@ -131,6 +135,11 @@ def load_model(path):
     # Aplicar Normalización (Centrado y Escalado)
     print("Normalizando geometría (centrado y escalado)...")
     model_data.vertices = normalize_model(model_data.vertices)
+    
+    model_data.file_name = os.path.basename(path)
+    model_data.file_size_mb = os.path.getsize(path) / (1024 * 1024)
+    model_data.vertex_count = len(model_data.vertices)
+    model_data.face_count = len(model_data.faces)
     
     print(f"Modelo listo: {len(model_data.vertices)} vértices, {len(model_data.faces)} caras.")
     return model_data

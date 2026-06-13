@@ -9,6 +9,7 @@ GESTURE_ZOOM_MODE = "ZOOM_MODE"
 GESTURE_INDEX_UP = "INDEX_UP"
 GESTURE_TWO_INDEX = "TWO_INDEX"
 GESTURE_TWO_HANDS = "TWO_HANDS"
+GESTURE_TWO_FISTS = "TWO_FISTS"
 GESTURE_TWO_FINGERS = "TWO_FINGERS"
 
 # Estado interno
@@ -19,11 +20,13 @@ last_two_fingers_pos = None
 last_gesture_time = 0
 was_two_index = False
 was_ok = False
+was_two_fists = False
 
 # Filtro Exponencial y Zonas Muertas
 SMOOTH_ALPHA = 0.3
 DEADZONE = 0.005
 
+smooth_fist_pos = None
 smooth_palm_pos = None
 smooth_palm_tilt = None
 smooth_pinch_dist = None
@@ -44,8 +47,6 @@ def get_finger_states(lms):
     states = []
     
     # Pulgar (tip=4, pinky_base=17, thumb_base=2)
-    # Comparamos la distancia de la punta del pulgar a la base del meñique. 
-    # Si es grande, está extendido (Thumbs up/Open palm). Si es corta, está plegado (Puño).
     states.append(get_distance(lms[4], lms[17]) > get_distance(lms[2], lms[17]) * 1.1)
     
     # Indice (tip=8, pip=6)
@@ -102,7 +103,7 @@ def apply_smoothing(current_val, prev_val, alpha=SMOOTH_ALPHA):
 def process_gestures(landmarks_list):
     global last_pinch_dist, last_fist_pos, last_palm_pos, last_two_fingers_pos, last_palm_tilt
     global smooth_fist_pos, smooth_palm_pos, smooth_pinch_dist, smooth_two_fingers_pos, smooth_palm_tilt
-    global last_gesture_time, was_two_index, was_ok, was_pinch
+    global last_gesture_time, was_two_index, was_ok, was_two_fists
     
     detected = []
     
@@ -119,12 +120,13 @@ def process_gestures(landmarks_list):
         last_pinch_dist = None
         was_two_index = False
         was_ok = False
+        was_two_fists = False
         config.detected_gestures = []
         return
         
     hand_lms = landmarks_list[0]
     
-    # ✋✋ DOS MANOS ARRIBA (RESET)
+    # Gestos de 2 manos
     if len(landmarks_list) >= 2:
         hand1 = classify_hand(landmarks_list[0])
         hand2 = classify_hand(landmarks_list[1])
@@ -134,6 +136,9 @@ def process_gestures(landmarks_list):
         elif hand1 == GESTURE_INDEX_UP and hand2 == GESTURE_INDEX_UP:
             gesture = GESTURE_TWO_INDEX
             detected.append(GESTURE_TWO_INDEX)
+        elif hand1 == GESTURE_FIST and hand2 == GESTURE_FIST:
+            gesture = GESTURE_TWO_FISTS
+            detected.append(GESTURE_TWO_FISTS)
         else:
             gesture = hand1
             detected.append(gesture)
@@ -146,107 +151,111 @@ def process_gestures(landmarks_list):
     
     current_time = time.time()
     
-    # Aislamiento de modos: Si el explorador está abierto, desactivar rotación y controles
-    if not config.is_explorer_open:
-        # ✊ ROTACIÓN X/Y
-        if gesture == GESTURE_FIST:
-            smooth_fist_pos = apply_smoothing((raw_center_x, raw_center_y), smooth_fist_pos)
-            if last_fist_pos is not None:
-                dx = smooth_fist_pos[0] - last_fist_pos[0]
-                dy = smooth_fist_pos[1] - last_fist_pos[1]
-                if abs(dx) > DEADZONE or abs(dy) > DEADZONE:
+    # ✊ ROTACIÓN X/Y (o mover luz si light_mode activo)
+    if gesture == GESTURE_FIST:
+        smooth_fist_pos = apply_smoothing((raw_center_x, raw_center_y), smooth_fist_pos)
+        if last_fist_pos is not None:
+            dx = smooth_fist_pos[0] - last_fist_pos[0]
+            dy = smooth_fist_pos[1] - last_fist_pos[1]
+            if abs(dx) > DEADZONE or abs(dy) > DEADZONE:
+                if config.light_mode:
+                    config.light_yaw += dx * 5.0
+                    config.light_pitch += dy * 5.0
+                    if config.light_pitch > 1.5: config.light_pitch = 1.5
+                    if config.light_pitch < -1.5: config.light_pitch = -1.5
+                else:
                     config.camera_yaw += dx * 150.0
                     config.camera_pitch += dy * 150.0
                     if config.camera_pitch > 89.0: config.camera_pitch = 89.0
                     if config.camera_pitch < -89.0: config.camera_pitch = -89.0
-                    last_fist_pos = smooth_fist_pos
-            else:
                 last_fist_pos = smooth_fist_pos
         else:
-            smooth_fist_pos = None
-            last_fist_pos = None
-            
-        # ✌️ ROTACIÓN Z
-        if gesture == GESTURE_TWO_FINGERS:
-            smooth_two_fingers_pos = apply_smoothing((raw_center_x, raw_center_y), smooth_two_fingers_pos)
-            if last_two_fingers_pos is not None:
-                dx = smooth_two_fingers_pos[0] - last_two_fingers_pos[0]
-                if abs(dx) > DEADZONE:
-                    config.camera_roll += dx * 150.0
-                    last_two_fingers_pos = smooth_two_fingers_pos
-            else:
+            last_fist_pos = smooth_fist_pos
+    else:
+        smooth_fist_pos = None
+        last_fist_pos = None
+        
+    # ✌️ ROTACIÓN Z
+    if gesture == GESTURE_TWO_FINGERS:
+        smooth_two_fingers_pos = apply_smoothing((raw_center_x, raw_center_y), smooth_two_fingers_pos)
+        if last_two_fingers_pos is not None:
+            dx = smooth_two_fingers_pos[0] - last_two_fingers_pos[0]
+            if abs(dx) > DEADZONE:
+                config.camera_roll += dx * 150.0
                 last_two_fingers_pos = smooth_two_fingers_pos
         else:
-            smooth_two_fingers_pos = None
-            last_two_fingers_pos = None
-            
-        # ✋ PALMA MÁGICA (Mover X/Y para Pan, Inclinar para Rotar)
-        if gesture == GESTURE_OPEN_PALM:
-            # Calcular Inclinación en 3D (Z-depth)
-            yaw_raw = hand_lms[5][2] - hand_lms[17][2]
-            pitch_raw = hand_lms[9][2] - hand_lms[0][2]
-            roll_raw = math.atan2(hand_lms[9][1] - hand_lms[0][1], hand_lms[9][0] - hand_lms[0][0])
-            
-            tilt_raw = (yaw_raw, pitch_raw, roll_raw)
-            
-            smooth_palm_pos = apply_smoothing((raw_center_x, raw_center_y), smooth_palm_pos)
-            smooth_palm_tilt = apply_smoothing(tilt_raw, smooth_palm_tilt)
-            
-            if last_palm_pos is not None and last_palm_tilt is not None:
-                # 1. Panorámica (XY)
-                dx = smooth_palm_pos[0] - last_palm_pos[0]
-                dy = smooth_palm_pos[1] - last_palm_pos[1]
-                if abs(dx) > DEADZONE or abs(dy) > DEADZONE:
-                    config.camera_pan_x += dx * 6.0  
-                    config.camera_pan_y -= dy * 6.0  
-                    last_palm_pos = smooth_palm_pos
-                    
-                # 2. Rotación (Inclinación Z y Ángulo 2D)
-                dyaw = smooth_palm_tilt[0] - last_palm_tilt[0]
-                dpitch = smooth_palm_tilt[1] - last_palm_tilt[1]
-                droll = smooth_palm_tilt[2] - last_palm_tilt[2]
-                
-                if abs(dyaw) > 0.001 or abs(dpitch) > 0.001 or abs(droll) > 0.01:
-                    config.camera_yaw -= dyaw * 4000.0     
-                    config.camera_pitch -= dpitch * 4000.0 
-                    config.camera_roll -= droll * 50.0     
-                    
-                    if config.camera_pitch > 89.0: config.camera_pitch = 89.0
-                    if config.camera_pitch < -89.0: config.camera_pitch = -89.0
-                    last_palm_tilt = smooth_palm_tilt
-            else:
+            last_two_fingers_pos = smooth_two_fingers_pos
+    else:
+        smooth_two_fingers_pos = None
+        last_two_fingers_pos = None
+        
+    # ✋ PALMA MÁGICA (Mover X/Y para Pan, Inclinar para Rotar)
+    if gesture == GESTURE_OPEN_PALM:
+        # Calcular Inclinación en 3D (Z-depth)
+        yaw_raw = hand_lms[5][2] - hand_lms[17][2]
+        pitch_raw = hand_lms[9][2] - hand_lms[0][2]
+        roll_raw = math.atan2(hand_lms[9][1] - hand_lms[0][1], hand_lms[9][0] - hand_lms[0][0])
+        
+        tilt_raw = (yaw_raw, pitch_raw, roll_raw)
+        
+        smooth_palm_pos = apply_smoothing((raw_center_x, raw_center_y), smooth_palm_pos)
+        smooth_palm_tilt = apply_smoothing(tilt_raw, smooth_palm_tilt)
+        
+        if last_palm_pos is not None and last_palm_tilt is not None:
+            # 1. Panorámica (XY)
+            dx = smooth_palm_pos[0] - last_palm_pos[0]
+            dy = smooth_palm_pos[1] - last_palm_pos[1]
+            if abs(dx) > DEADZONE or abs(dy) > DEADZONE:
+                config.camera_pan_x += dx * 6.0  
+                config.camera_pan_y -= dy * 6.0  
                 last_palm_pos = smooth_palm_pos
+                
+            # 2. Rotación (Inclinación Z y Ángulo 2D)
+            dyaw = smooth_palm_tilt[0] - last_palm_tilt[0]
+            dpitch = smooth_palm_tilt[1] - last_palm_tilt[1]
+            droll = smooth_palm_tilt[2] - last_palm_tilt[2]
+            
+            if abs(dyaw) > 0.001 or abs(dpitch) > 0.001 or abs(droll) > 0.01:
+                config.camera_yaw -= dyaw * 4000.0     
+                config.camera_pitch -= dpitch * 4000.0 
+                config.camera_roll -= droll * 50.0     
+                
+                if config.camera_pitch > 89.0: config.camera_pitch = 89.0
+                if config.camera_pitch < -89.0: config.camera_pitch = -89.0
                 last_palm_tilt = smooth_palm_tilt
         else:
-            smooth_palm_pos = None
-            last_palm_pos = None
-            smooth_palm_tilt = None
-            last_palm_tilt = None
-            
-        # 🤏 ZOOM
-        if gesture == GESTURE_ZOOM_MODE:
-            raw_dist = get_distance(hand_lms[4], hand_lms[8])
-            smooth_pinch_dist = apply_smoothing(raw_dist, smooth_pinch_dist)
-            if last_pinch_dist is not None:
-                ddist = smooth_pinch_dist - last_pinch_dist
-                if abs(ddist) > (DEADZONE / 2.0):
-                    config.camera_distance -= ddist * 20.0
-                    if config.camera_distance < 0.5: config.camera_distance = 0.5
-                    if config.camera_distance > 50.0: config.camera_distance = 50.0
-                    last_pinch_dist = smooth_pinch_dist
-            else:
+            last_palm_pos = smooth_palm_pos
+            last_palm_tilt = smooth_palm_tilt
+    else:
+        smooth_palm_pos = None
+        last_palm_pos = None
+        smooth_palm_tilt = None
+        last_palm_tilt = None
+        
+    # 🤏 ZOOM
+    if gesture == GESTURE_ZOOM_MODE:
+        raw_dist = get_distance(hand_lms[4], hand_lms[8])
+        smooth_pinch_dist = apply_smoothing(raw_dist, smooth_pinch_dist)
+        if last_pinch_dist is not None:
+            ddist = smooth_pinch_dist - last_pinch_dist
+            if abs(ddist) > (DEADZONE / 2.0):
+                config.camera_distance -= ddist * 20.0
+                if config.camera_distance < 0.5: config.camera_distance = 0.5
+                if config.camera_distance > 50.0: config.camera_distance = 50.0
                 last_pinch_dist = smooth_pinch_dist
         else:
-            smooth_pinch_dist = None
-            last_pinch_dist = None
-            
-        # ☝️☝️ 2 INDICES (CAMBIAR MODO)
-        if gesture == GESTURE_TWO_INDEX:
-            if not was_two_index:
-                config.current_render_mode_idx = (config.current_render_mode_idx + 1) % len(config.render_modes)
-                was_two_index = True
-        else:
-            was_two_index = False
+            last_pinch_dist = smooth_pinch_dist
+    else:
+        smooth_pinch_dist = None
+        last_pinch_dist = None
+        
+    # ☝️☝️ 2 INDICES (CAMBIAR MODO)
+    if gesture == GESTURE_TWO_INDEX:
+        if not was_two_index:
+            config.current_render_mode_idx = (config.current_render_mode_idx + 1) % len(config.render_modes)
+            was_two_index = True
+    else:
+        was_two_index = False
             
     # ✋✋ RESET (DOS MANOS ARRIBA)
     if gesture == GESTURE_TWO_HANDS:
@@ -260,6 +269,13 @@ def process_gestures(landmarks_list):
             was_ok = True
     else:
         was_ok = False
-
+        
+    # ✊✊ CAPTURA DE PANTALLA (DOS PUÑOS)
+    if gesture == GESTURE_TWO_FISTS:
+        if not was_two_fists:
+            config.take_screenshot = True
+            was_two_fists = True
+    else:
+        was_two_fists = False
             
     config.detected_gestures = detected
