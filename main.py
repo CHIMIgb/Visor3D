@@ -61,6 +61,12 @@ def main():
     while not glfw.window_should_close(window) and config.running:
         glfw.poll_events()
         
+        # Inicializar variables de textura (fuera del loop)
+        if 'cam_tex_id' not in locals():
+            cam_tex_id = None
+            ui_tex_id = None
+            info_tex_id = None
+        
         glClearColor(0.1, 0.1, 0.1, 1.0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         
@@ -75,10 +81,9 @@ def main():
             if config.current_landmarks_normalized is not None:
                 lms_to_draw = config.current_landmarks_normalized
                 
-        texture_id = None
         cam_w, cam_h = 1280, 720
         if frame_to_draw is not None:
-            texture_id = create_texture(frame_to_draw)
+            cam_tex_id = update_texture(cam_tex_id, frame_to_draw)
             cam_h, cam_w = frame_to_draw.shape[:2]
         
         # Obtener modelo activo
@@ -90,9 +95,8 @@ def main():
             # ====== PANTALLA DIVIDIDA ======
             vx, vy, vw, vh = get_aspect_correct_viewport(0, 0, half_width, fb_height, cam_w, cam_h)
             glViewport(vx, vy, vw, vh)
-            if texture_id:
-                draw_textured_quad(texture_id)
-                texture_id = None
+            if cam_tex_id:
+                draw_textured_quad(cam_tex_id)
             
             if lms_to_draw:
                 draw_skeleton_opengl(lms_to_draw)
@@ -114,16 +118,12 @@ def main():
                 glViewport(vx, vy, vw, vh)
                 draw_skeleton_opengl(lms_to_draw)
                 
-            if texture_id:
-                glDeleteTextures([texture_id])
-                
         elif config.view_mode == 2:
             # ====== REALIDAD AUMENTADA ======
             vx, vy, vw, vh = get_aspect_correct_viewport(0, 0, fb_width, fb_height, cam_w, cam_h)
             glViewport(vx, vy, vw, vh)
-            if texture_id:
-                draw_textured_quad(texture_id)
-                texture_id = None
+            if cam_tex_id:
+                draw_textured_quad(cam_tex_id)
                 
             if lms_to_draw:
                 draw_skeleton_opengl(lms_to_draw)
@@ -138,22 +138,20 @@ def main():
         win_w, win_h = glfw.get_window_size(window)
         
         ui_img = get_ui_texture(config.is_loading_model)
-        ui_tex = create_texture(ui_img)
-        if ui_tex:
+        ui_tex_id = update_texture(ui_tex_id, ui_img)
+        if ui_tex_id:
             ui_h, ui_w = ui_img.shape[:2]
             glViewport(0, 0, fb_width, fb_height)
-            draw_ui_overlay(ui_tex, win_w, win_h, ui_w, ui_h)
-            glDeleteTextures([ui_tex])
+            draw_ui_overlay(ui_tex_id, win_w, win_h, ui_w, ui_h)
             
         # ====== INFO DEL MODELO ======
         info_img = get_model_info_texture(win_w, win_h)
         if info_img is not None:
-            info_tex = create_texture(info_img)
-            if info_tex:
+            info_tex_id = update_texture(info_tex_id, info_img)
+            if info_tex_id:
                 info_h, info_w = info_img.shape[:2]
                 glViewport(0, 0, fb_width, fb_height)
-                draw_ui_overlay(info_tex, win_w, win_h, info_w, info_h)
-                glDeleteTextures([info_tex])
+                draw_ui_overlay(info_tex_id, win_w, win_h, info_w, info_h)
         
         # ====== CAPTURA DE PANTALLA ======
         if config.take_screenshot:

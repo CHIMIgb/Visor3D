@@ -13,14 +13,19 @@ HAND_CONNECTIONS = [
     (13, 17), (0, 17), (17, 18), (18, 19), (19, 20)
 ]
 
-def create_texture(image):
-    if image is None: return None
+def update_texture(texture_id, image):
+    if image is None: return texture_id
     height, width, channels = image.shape
     image_data = np.frombuffer(image.tobytes(), np.uint8)
-    texture_id = glGenTextures(1)
-    glBindTexture(GL_TEXTURE_2D, texture_id)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+    
+    if texture_id is None:
+        texture_id = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, texture_id)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+    else:
+        glBindTexture(GL_TEXTURE_2D, texture_id)
+        
     format_gl = GL_RGBA if channels == 4 else GL_RGB
     glTexImage2D(GL_TEXTURE_2D, 0, format_gl, width, height, 0, format_gl, GL_UNSIGNED_BYTE, image_data)
     return texture_id
@@ -84,7 +89,6 @@ def draw_textured_quad(texture_id):
     glMatrixMode(GL_PROJECTION)
     glPopMatrix()
     glMatrixMode(GL_MODELVIEW)
-    glDeleteTextures([texture_id])
     glDisable(GL_TEXTURE_2D)
     glEnable(GL_DEPTH_TEST)
 
