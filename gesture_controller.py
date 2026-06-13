@@ -260,22 +260,6 @@ def process_gestures(landmarks_list):
             was_ok = True
     else:
         was_ok = False
-        
-    # ☝️ CURSOR Y CLICK
-    if gesture == GESTURE_INDEX_POINT or gesture == GESTURE_PINCH:
-        tip_x = hand_lms[8][0]
-        tip_y = hand_lms[8][1]
-        
-        # Suavizado para el cursor
-        config.cursor_x = config.cursor_x * 0.7 + tip_x * 0.3
-        config.cursor_y = config.cursor_y * 0.7 + tip_y * 0.3
-        
-    if gesture == GESTURE_PINCH:
-        if not was_pinch:
-            import input_handlers
-            input_handlers.handle_gesture_click(config.cursor_x, config.cursor_y)
-            was_pinch = True
-    else:
-        was_pinch = False
+
             
     config.detected_gestures = detected
