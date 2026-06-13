@@ -10,8 +10,6 @@ GESTURE_INDEX_UP = "INDEX_UP"
 GESTURE_TWO_INDEX = "TWO_INDEX"
 GESTURE_TWO_HANDS = "TWO_HANDS"
 GESTURE_TWO_FINGERS = "TWO_FINGERS"
-GESTURE_PINCH = "PINCH"
-GESTURE_INDEX_POINT = "INDEX_POINT"
 
 # Estado interno
 last_pinch_dist = None
@@ -21,7 +19,6 @@ last_two_fingers_pos = None
 last_gesture_time = 0
 was_two_index = False
 was_ok = False
-was_pinch = False
 
 # Filtro Exponencial y Zonas Muertas
 SMOOTH_ALPHA = 0.3
@@ -73,14 +70,6 @@ def classify_hand(lms):
     pinch_dist = get_distance(lms[4], lms[8])
     is_pinching = pinch_dist < 0.05
     
-    # 🤏 PINCH (Click)
-    if is_pinching and not middle and not ring and not pinky:
-        return GESTURE_PINCH
-        
-    # ☝️ INDEX_POINT (Cursor)
-    if not thumb and index and not middle and not ring and not pinky:
-        return GESTURE_INDEX_POINT
-        
     # 🤏 ZOOM MODE (Pulgar e Índice extendidos, sin tocarse)
     if thumb and index and not is_pinching and not middle and not ring and not pinky:
         return GESTURE_ZOOM_MODE
@@ -130,7 +119,6 @@ def process_gestures(landmarks_list):
         last_pinch_dist = None
         was_two_index = False
         was_ok = False
-        was_pinch = False
         config.detected_gestures = []
         return
         
