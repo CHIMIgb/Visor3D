@@ -275,30 +275,27 @@ def render_model_geometry(model_data):
     else:
         glColor3fv(palette_color)
     
-    if not hasattr(model_data, 'display_list_id') or model_data.display_list_id is None:
-        model_data.display_list_id = glGenLists(1)
-        model_data._cached_color_idx = config.current_color_idx
-        glNewList(model_data.display_list_id, GL_COMPILE)
+    if not hasattr(model_data, 'display_lists'):
+        model_data.display_lists = {}
+        
+    list_mode = 'colored' if (model_data.colors is not None and config.current_color_idx == 0) else 'solid'
+    
+    if list_mode not in model_data.display_lists:
+        dl_id = glGenLists(1)
+        glNewList(dl_id, GL_COMPILE)
         glBegin(GL_TRIANGLES)
         for face in model_data.faces:
             for vertex_idx in face:
                 if model_data.normals is not None and len(model_data.normals) > vertex_idx:
                     glNormal3fv(model_data.normals[vertex_idx])
-                if model_data.colors is not None and len(model_data.colors) > vertex_idx and config.current_color_idx == 0:
+                if list_mode == 'colored' and len(model_data.colors) > vertex_idx:
                     glColor3fv(model_data.colors[vertex_idx])
                 glVertex3fv(model_data.vertices[vertex_idx])
         glEnd()
         glEndList()
-    
-    # Invalidar display list si el color cambió
-    if hasattr(model_data, '_cached_color_idx') and model_data._cached_color_idx != config.current_color_idx:
-        glDeleteLists(model_data.display_list_id, 1)
-        model_data.display_list_id = None
-        model_data._cached_color_idx = config.current_color_idx
-        render_model_geometry(model_data)  # Reconstruir
-        return
+        model_data.display_lists[list_mode] = dl_id
         
-    glCallList(model_data.display_list_id)
+    glCallList(model_data.display_lists[list_mode])
 
 def draw_model(model_data, aspect_ratio):
     if not model_data: return

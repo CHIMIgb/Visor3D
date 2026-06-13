@@ -77,7 +77,14 @@ def key_callback(window, key, scancode, action, mods):
             if len(config.loaded_models) > 0:
                 # Invalidar display list antes de borrar
                 model = config.loaded_models[config.active_model_idx]
-                if hasattr(model, 'display_list_id'):
+                if hasattr(model, 'display_lists'):
+                    from OpenGL.GL import glDeleteLists
+                    for dl_id in model.display_lists.values():
+                        try:
+                            glDeleteLists(dl_id, 1)
+                        except:
+                            pass
+                elif hasattr(model, 'display_list_id') and model.display_list_id is not None:
                     from OpenGL.GL import glDeleteLists
                     try:
                         glDeleteLists(model.display_list_id, 1)
