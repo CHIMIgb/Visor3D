@@ -6,7 +6,8 @@ GESTURE_NONE = "NONE"
 GESTURE_FIST = "FIST"
 GESTURE_OPEN_PALM = "OPEN_PALM"
 GESTURE_ZOOM_MODE = "ZOOM_MODE"
-GESTURE_THUMBS_UP = "THUMBS_UP"
+GESTURE_INDEX_UP = "INDEX_UP"
+GESTURE_TWO_INDEX = "TWO_INDEX"
 GESTURE_TWO_HANDS = "TWO_HANDS"
 GESTURE_TWO_FINGERS = "TWO_FINGERS"
 GESTURE_PINCH = "PINCH"
@@ -18,7 +19,7 @@ last_fist_pos = None
 last_palm_pos = None
 last_two_fingers_pos = None
 last_gesture_time = 0
-was_thumbs_up = False
+was_two_index = False
 was_ok = False
 was_pinch = False
 
@@ -92,9 +93,9 @@ def classify_hand(lms):
     if not thumb and index and middle and not ring and not pinky:
         return GESTURE_TWO_FINGERS
         
-    # 👍 THUMBS_UP
-    if thumb and not index and not middle and not ring and not pinky:
-        return GESTURE_THUMBS_UP
+    # ☝️ UN INDICE (Para 2 Indices Mode)
+    if index and not thumb and not middle and not ring and not pinky:
+        return GESTURE_INDEX_UP
         
     # ✋ OPEN_PALM (Exigimos al menos los 4 dedos principales extendidos)
     if index and middle and ring and pinky:
@@ -127,7 +128,7 @@ def process_gestures(landmarks_list):
         last_palm_tilt = None
         last_two_fingers_pos = None
         last_pinch_dist = None
-        was_thumbs_up = False
+        was_two_index = False
         was_ok = False
         was_pinch = False
         config.detected_gestures = []
@@ -142,6 +143,9 @@ def process_gestures(landmarks_list):
         if hand1 == GESTURE_OPEN_PALM and hand2 == GESTURE_OPEN_PALM:
             gesture = GESTURE_TWO_HANDS
             detected.append(GESTURE_TWO_HANDS)
+        elif hand1 == GESTURE_INDEX_UP and hand2 == GESTURE_INDEX_UP:
+            gesture = GESTURE_TWO_INDEX
+            detected.append(GESTURE_TWO_INDEX)
         else:
             gesture = hand1
             detected.append(gesture)
@@ -248,13 +252,13 @@ def process_gestures(landmarks_list):
             smooth_pinch_dist = None
             last_pinch_dist = None
             
-        # 👍 PULGAR ARRIBA
-        if gesture == GESTURE_THUMBS_UP:
-            if not was_thumbs_up:
+        # ☝️☝️ 2 INDICES (CAMBIAR MODO)
+        if gesture == GESTURE_TWO_INDEX:
+            if not was_two_index:
                 config.current_render_mode_idx = (config.current_render_mode_idx + 1) % len(config.render_modes)
-                was_thumbs_up = True
+                was_two_index = True
         else:
-            was_thumbs_up = False
+            was_two_index = False
             
     # ✋✋ RESET (DOS MANOS ARRIBA)
     if gesture == GESTURE_TWO_HANDS:

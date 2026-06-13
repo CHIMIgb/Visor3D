@@ -61,7 +61,7 @@ def get_ui_texture(is_loading):
         cv2.putText(img, "Gestos Disponibles:", (650, start_y), cv2.FONT_HERSHEY_COMPLEX, 0.4, (255, 255, 255, 255), 1)
         cv2.putText(img, "- Palma: Mover/Rotar", (650, start_y + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
         cv2.putText(img, "- Pulgar+Indice: Zoom", (650, start_y + 40), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
-        cv2.putText(img, "- Pulgar Arriba: Modo", (650, start_y + 60), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
+        cv2.putText(img, "- 2 Indices: Modo", (650, start_y + 60), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
         cv2.putText(img, "- 2 Dedos (V): Rotar Z", (650, start_y + 80), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
         cv2.putText(img, "- 2 Manos: Reset", (650, start_y + 100), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200, 255), 1)
         
