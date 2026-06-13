@@ -102,7 +102,7 @@ def apply_smoothing(current_val, prev_val, alpha=SMOOTH_ALPHA):
 def process_gestures(landmarks_list):
     global last_pinch_dist, last_fist_pos, last_palm_pos, last_two_fingers_pos, last_palm_tilt
     global smooth_fist_pos, smooth_palm_pos, smooth_pinch_dist, smooth_two_fingers_pos, smooth_palm_tilt
-    global last_gesture_time, was_thumbs_up, was_ok, was_pinch
+    global last_gesture_time, was_two_index, was_ok, was_pinch
     
     detected = []
     
