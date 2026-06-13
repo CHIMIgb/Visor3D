@@ -215,7 +215,7 @@ def process_gestures(landmarks_list):
                 droll = smooth_palm_tilt[2] - last_palm_tilt[2]
                 
                 if abs(dyaw) > 0.001 or abs(dpitch) > 0.001 or abs(droll) > 0.01:
-                    config.camera_yaw += dyaw * 4000.0     
+                    config.camera_yaw -= dyaw * 4000.0     
                     config.camera_pitch += dpitch * 4000.0 
                     config.camera_roll -= droll * 50.0     
                     
