@@ -11,6 +11,7 @@ GESTURE_TWO_INDEX = "TWO_INDEX"
 GESTURE_TWO_HANDS = "TWO_HANDS"
 GESTURE_TWO_FISTS = "TWO_FISTS"
 GESTURE_TWO_FINGERS = "TWO_FINGERS"
+GESTURE_SURF = "SURF"
 
 # Estado interno
 last_pinch_dist = None
@@ -21,6 +22,7 @@ last_gesture_time = 0
 was_two_index = False
 was_ok = False
 was_two_fists = False
+was_surf = False
 
 # Filtro Exponencial y Zonas Muertas
 SMOOTH_ALPHA = 0.3
@@ -91,6 +93,10 @@ def classify_hand(lms):
     if index and middle and ring and pinky:
         return GESTURE_OPEN_PALM
         
+    # 🤙 SURF (Pulgar y Meñique extendidos, resto doblados)
+    if thumb and pinky and not index and not middle and not ring:
+        return GESTURE_SURF
+        
     return GESTURE_NONE
 
 def apply_smoothing(current_val, prev_val, alpha=SMOOTH_ALPHA):
@@ -103,7 +109,7 @@ def apply_smoothing(current_val, prev_val, alpha=SMOOTH_ALPHA):
 def process_gestures(landmarks_list):
     global last_pinch_dist, last_fist_pos, last_palm_pos, last_two_fingers_pos, last_palm_tilt
     global smooth_fist_pos, smooth_palm_pos, smooth_pinch_dist, smooth_two_fingers_pos, smooth_palm_tilt
-    global last_gesture_time, was_two_index, was_ok, was_two_fists
+    global last_gesture_time, was_two_index, was_ok, was_two_fists, was_surf
     
     detected = []
     
@@ -121,6 +127,7 @@ def process_gestures(landmarks_list):
         was_two_index = False
         was_ok = False
         was_two_fists = False
+        was_surf = False
         config.detected_gestures = []
         return
         
@@ -277,5 +284,14 @@ def process_gestures(landmarks_list):
             was_two_fists = True
     else:
         was_two_fists = False
+            
+    # 🤙 CAMBIO DE COLOR (SURF)
+    if gesture == GESTURE_SURF:
+        if not was_surf:
+            config.current_color_idx = (config.current_color_idx + 1) % len(config.color_palette)
+            config.color_feedback_time = time.time()
+            was_surf = True
+    else:
+        was_surf = False
             
     config.detected_gestures = detected

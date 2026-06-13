@@ -1,17 +1,46 @@
 # 🖐️ Visor 3D por Gestos
 
-Aplicación de escritorio en Python que permite cargar, visualizar y manipular modelos 3D de cualquier formato usando únicamente gestos de mano detectados por cámara web, sin necesidad de mouse ni teclado.
+Aplicación de escritorio en Python que permite cargar, visualizar y manipular múltiples modelos 3D usando gestos de mano detectados por cámara web, además de ofrecer atajos de teclado para controles avanzados (iluminación, planos de sección, y más).
 
 ## Características Principales
 
-*   **Interfaz gestual:** Controla la rotación, zoom y manipulación de los modelos únicamente con el movimiento de tus manos.
-*   **Detección en tiempo real:** Uso de MediaPipe y OpenCV para un reconocimiento de gestos fluido y preciso.
-*   **Renderizado de alto rendimiento:** Motor 3D construido con PyOpenGL y GLFW para visualización eficiente.
+*   **Interfaz Gestual:** Controla la rotación, panorámica, zoom y cambio de modos únicamente con gestos intuitivos de tus manos.
+*   **Vistas Múltiples:** Soporta vista dividida, HUD Holográfico 3D sobre la cámara, y Realidad Aumentada básica.
+*   **Controles Avanzados:** Paleta de colores, iluminación dinámica, planos de sección de corte (`Clip Planes`), e información detallada del modelo.
+*   **Multi-modelo:** Permite cargar hasta 5 modelos simultáneamente y navegar entre ellos.
+*   **Exportación:** Capturas de pantalla integradas con un simple gesto o tecla.
+*   **Renderizado de alto rendimiento:** Motor 3D construido con PyOpenGL y GLFW.
 
-## Requisitos del Sistema
+## 🤲 Gestos Soportados
 
-*   Python 3.8+
-*   Cámara web funcional
+| Gesto | Acción |
+|---|---|
+| ✋ **Palma Abierta** | Mover (Panorámica X/Y) e Inclinar para Rotar |
+| ✊ **Puño Cerrado** | Rotar en X/Y (o mover luz si modo Luz activo) |
+| ✌️ **Dos Dedos (V)** | Rotar en el eje Z (Roll) |
+| 🤏 **Pulgar + Índice** | Zoom (acercar/alejar la distancia de cámara) |
+| ☝️☝️ **Dos Índices** | Ciclar modo de renderizado (Solid, Wireframe, Points) |
+| ✋✋ **Dos Palmas** | Resetear posición y rotación de cámara |
+| ✊✊ **Dos Puños** | Tomar captura de pantalla |
+| 🤙 **Llamada / Surf** | Cambiar color del modelo (Pulgar y Meñique) |
+
+## ⌨️ Atajos de Teclado
+
+| Tecla | Acción |
+|---|---|
+| `O` | Abrir explorador de archivos para cargar un modelo |
+| `V` | Ciclar modos de vista (Dividida / HUD / AR) |
+| `M` | Ciclar modo de renderizado |
+| `G` | Activar/desactivar la cuadrícula (Grid) del suelo |
+| `C` | Ciclar color del modelo (Gris, Rojo, Verde, Azul...) |
+| `L` | Alternar modo de iluminación dinámica |
+| `S` | Activar/desactivar sección de corte (Clip Plane) |
+| `X` | Cambiar eje de corte (X, Y, Z) (cuando `S` activo) |
+| `Scroll` | Mover el plano de corte (cuando `S` activo) |
+| `I` | Mostrar panel de información del modelo |
+| `←` / `→` | Navegar entre modelos cargados (máx 5) |
+| `Delete` | Eliminar el modelo activo de la memoria |
+| `P` | Tomar captura de pantalla |
 
 ## Instalación
 
@@ -43,10 +72,10 @@ Aplicación de escritorio en Python que permite cargar, visualizar y manipular m
 Con el entorno virtual activado, ejecuta el script principal:
 
 ```bash
-python main.py
+python main.py [ruta_al_modelo.obj]
 ```
 
-Se abrirá una ventana mostrando la cámara a la izquierda con el reconocimiento de tus manos, y un entorno 3D de prueba (un cubo giratorio) a la derecha.
+Puedes iniciar la aplicación cargando un modelo por defecto pasándole la ruta como argumento, o simplemente iniciar `main.py` y arrastrar y soltar (Drag & Drop) un modelo `.obj`, `.stl`, o `.ply` a la ventana.
 
 ## Dependencias
 
@@ -55,9 +84,4 @@ Se abrirá una ventana mostrando la cámara a la izquierda con el reconocimiento
 *   `PyOpenGL`
 *   `glfw`
 *   `numpy`
-
-## Estructura del Proyecto
-
-*   `main.py`: Script de entrada de la aplicación.
-*   `visor3D_gestos.md`: Documentación interna y diseño del proyecto.
-*   `requirements.txt`: Lista de dependencias.
+*   `trimesh` & `open3d` (Para carga de modelos)

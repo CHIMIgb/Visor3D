@@ -108,8 +108,11 @@ def mouse_button_callback(window, button, action, mods):
                 elif 490 <= xpos <= 640:
                     config.show_grid = not config.show_grid
                     return
-                elif 650 <= xpos <= 800:
+                elif 650 <= xpos <= 760:
                     config.show_gestures_menu = not config.show_gestures_menu
+                    return
+                elif 770 <= xpos <= 880:
+                    config.show_shortcuts_menu = not config.show_shortcuts_menu
                     return
             
             # Si no hizo clic en la UI, iniciar rotación orbital

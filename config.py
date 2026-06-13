@@ -25,6 +25,7 @@ camera_pan_y = 0.0
 # Fase 4: Gestos
 detected_gestures = []
 show_gestures_menu = False
+show_shortcuts_menu = False
 
 # Para control con ratón
 is_mouse_dragging = False
