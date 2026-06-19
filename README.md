@@ -1,6 +1,15 @@
 # 🖐️ Visor 3D por Gestos
 
-Aplicación de escritorio en Python que permite cargar, visualizar y manipular múltiples modelos 3D usando gestos de mano detectados por cámara web, además de ofrecer atajos de teclado para controles avanzados (iluminación, planos de sección, y más).
+Aplicación de escritorio interactiva en Python que permite cargar, visualizar y manipular múltiples modelos 3D usando **únicamente gestos de mano** detectados por cámara web. No requiere teclado ni ratón para sus funciones principales.
+
+## 🎯 Por qué y Para qué se creó
+
+Esta aplicación fue concebida como una prueba de concepto para explorar el futuro de la **Interacción Humano-Computadora (HCI)** aplicada a entornos 3D, eliminando las barreras de los periféricos tradicionales.
+
+**Casos de uso ideales:**
+*   **Presentaciones sin contacto:** Mostrar diseños arquitectónicos o piezas de ingeniería en un proyector sin estar atado a un escritorio.
+*   **Entornos de trabajo híbridos / sucios:** Interfaz ideal para ingenieros, mecánicos o cirujanos que necesitan inspeccionar un modelo 3D con las manos manchadas o esterilizadas, donde tocar un teclado no es opción.
+*   **Realidad Aumentada de bajo costo:** Permite superponer modelos virtuales sobre el entorno real usando cualquier webcam estándar.
 
 ## Características Principales
 
