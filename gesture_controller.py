@@ -267,12 +267,12 @@ def process_gestures(landmarks_list):
     # ✋✋ RESET (DOS MANOS ARRIBA)
     if gesture == GESTURE_TWO_HANDS:
         if not was_ok:
-            config.camera_pitch = 0.0
-            config.camera_yaw = 0.0
+            config.camera_pitch = 30.0
+            config.camera_yaw = -45.0
             config.camera_roll = 0.0
             config.camera_pan_x = 0.0
             config.camera_pan_y = 0.0
-            config.camera_distance = 3.0
+            config.camera_distance = 6.0
             was_ok = True
     else:
         was_ok = False

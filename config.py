@@ -15,9 +15,9 @@ current_render_mode_idx = 0
 show_grid = True
 
 # Fase 3/4/5: Cámara Orbital y Panorámica
-camera_distance = 3.0
-camera_yaw = 0.0
-camera_pitch = 0.0
+camera_distance = 6.0
+camera_yaw = -45.0
+camera_pitch = 30.0
 camera_roll = 0.0
 camera_pan_x = 0.0
 camera_pan_y = 0.0
